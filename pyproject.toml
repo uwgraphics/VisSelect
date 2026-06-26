@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "visselect"
+version = "0.1.0"
+authors = [{ name="Connor Bailey", email="cbbcbail@cs.wisc.edu" }]
+description = "A Python package for designing subset selection for data visualization by blending visualization goals as composable objective functions"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.11"
+dependencies = ["numpy"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
