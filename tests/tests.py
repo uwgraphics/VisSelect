@@ -9,6 +9,7 @@ from visselect import Dataset
 # --- Test Class ---------------------------------------------------------------
 
 class TestDatasetConstructor(unittest.TestCase):
+    """Test the Dataset class constructor"""
 
     def testInitNumeric2DArray(self):
         """Test that a numeric 2D Numpy array can be loaded"""
