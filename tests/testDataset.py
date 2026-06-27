@@ -37,6 +37,29 @@ class TestDatasetConstructor(unittest.TestCase):
         """Test that a list raises a TypeError"""
         with self.assertRaises(TypeError):
             Dataset([[9.0, 3.0, 5.0], [4.0, 8.0, 7.0]])
+    
+    def testRejectNoRows(self):
+        """Test that an array with no rows raises a ValueError"""
+        with self.assertRaises(ValueError):
+            Dataset(np.zeros((0, 10)))
+    
+    def testRejectNoColumns(self):
+        """Test that an array with no columns raises a ValueError"""
+        with self.assertRaises(ValueError):
+            Dataset(np.zeros((10, 0)))
+
+class TestDatasetProperties(unittest.TestCase):
+    """Test the Dataset class properties"""
+
+    def testDatasetSize(self):
+        """Test the Dataset size property"""
+        dataset = Dataset(np.zeros((5, 15)))
+        self.assertEqual(dataset.size, (5, 15))
+
+    def testDatasetLength(self):
+        """Test the Dataset len dunder property"""
+        dataset = Dataset(np.zeros((20, 5)))
+        self.assertEqual(len(dataset), 20)
 
 if __name__ == "__main__":
     unittest.main()
