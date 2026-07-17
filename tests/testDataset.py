@@ -61,5 +61,35 @@ class TestDatasetProperties(unittest.TestCase):
         dataset = Dataset(np.zeros((20, 5)))
         self.assertEqual(len(dataset), 20)
 
+    def testDatasetFeatures(self):
+        """Test the Dataset loads features correctly"""
+        features = ["a", "b", "c"]
+        dataset = Dataset(np.zeros((10, 3)), features)
+        self.assertEqual(dataset.features, features)
+    
+    def testDatasetFeaturesWrongLength(self):
+        """Test that a Dataset with wrong feature length raises a ValueError"""
+        features = ["a", "b", "c"]
+        with self.assertRaises(ValueError):
+            Dataset(np.zeros((10, 10)), features)
+    
+    def testDatasetFeaturesDuplicates(self):
+        """Test that a Dataset with duplicate features raises a ValueError"""
+        features = ["a", "a", "b"]
+        with self.assertRaises(ValueError):
+            Dataset(np.zeros((10, 3)), features)
+
+    def testDatasetFeaturesDefault(self):
+        """Test the Dataset loads a default features list correctly"""
+        dataset = Dataset(np.zeros((10, 3)))
+        self.assertEqual(dataset.features, ["0", "1", "2"])
+
+    def testDatasetFeaturesMutation(self):
+        """Test that mutating the list does not change dataset features"""
+        features = ["a", "b", "c"]
+        dataset = Dataset(np.zeros((10, 3)), features)
+        features.append("d")
+        self.assertEqual(dataset.features, ["a", "b", "c"])
+
 if __name__ == "__main__":
     unittest.main()
