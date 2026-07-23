@@ -8,24 +8,27 @@ from numpy.typing import ArrayLike
 
 class Dataset:
     """
-    A class for storing a dataset for subset selection.
+    A class for storing a dataset for subset selection
     """
 
     def __init__(
-            self, 
-            data: ArrayLike, 
-            features: list[str] | None = None
-        ) -> None:
+        self, 
+        data: ArrayLike, 
+        features: list[str] | None = None
+    ) -> None:
         """
-        Initialize a dataset with a 2D tabular data array.
+        Initialize a dataset with a 2D tabular data array
         
         Args: 
-            data: A 2D NumPy ArrayLike (ndarray, or to_numpy/asarray coercible) of the dataset in tabular form with column features and row items
-            features: A list of feature names assigned to columns of the dataset to support named feature queries
+            data: A 2D NumPy ArrayLike (ndarray, or to_numpy/asarray coercible) 
+                of a dataset in tabular form with column features and row items
+            features: A list of feature names assigned to columns of the 
+                dataset to support named feature queries
 
         Raises: 
             TypeError: If data cannot be converted to a NumPy ndarray
-            ValueError: If data is not 2D, data has no rows/columns, length of features and data columns differ, or features has duplicates
+            ValueError: If data is not 2D, data has no rows/columns, length of 
+                features and data columns differ, or features has duplicates
         """
 
         if hasattr(data, "to_numpy"): # if supported, attempt to_numpy convert
@@ -55,7 +58,7 @@ class Dataset:
         # load and verify the feature column names if provided
         if features is not None:
             if len(features) != data.shape[1]:
-                raise ValueError("Length of features and data columns differs")
+                raise ValueError("Lengths of features and data columns differ")
             if len(set(features)) != len(features): 
                 raise ValueError("Features list contains duplicates")
             self._features = list(features)

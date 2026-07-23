@@ -6,6 +6,7 @@ from importlib.metadata import version
 
 # Import top-level classes
 from .dataset import Dataset
+from .subset import Subset
 
 __version__ = version("visselect")
-__all__ = ["Dataset"]
+__all__ = ["Dataset", "Subset"]
