@@ -41,3 +41,31 @@ class Subset:
 
         self._dataset = dataset
         self._indicator = indicator
+
+    @property
+    def data(self) -> np.ndarray:
+        """
+        The data array of the items selected in the subset
+        """
+        return self._dataset.data[self._indicator]
+
+    @property
+    def size(self) -> tuple[int, int]:
+        """
+        The tuple (rows, columns) of the size of the subset
+        """
+        return len(self), self._dataset.size[1]
+
+    def __len__(self) -> int:
+        """
+        The number of items contained in the subset
+        """
+        return np.count_nonzero(self._indicator)
+
+    def freeze(self) -> "Subset":
+        """
+        Create an independent write-protected snapshot of the subset
+        """
+        indicator = self._indicator.copy()
+        indicator.flags.writeable = False
+        return Subset(self._dataset, indicator)
