@@ -27,19 +27,19 @@ class TestDatasetConstructor(unittest.TestCase):
         """Test that a numeric 2D Numpy array can be loaded"""
         data = np.array([[9.0, 3.0, 5.0], [4.0, 8.0, 7.0], [1.0, 2.0, 6.0]])
         dataset = Dataset(data)
-        assert_array_equal(dataset._root, data)
+        assert_array_equal(dataset.data, data)
 
     def testInitNonNumeric2DArray(self):
         """Test that a non-numeric 2D Numpy array can be loaded"""
         data = np.array([["Plane", "Bus"], ["Train", "Car"], ["Bike", "Boat"]])
         dataset = Dataset(data)
-        assert_array_equal(dataset._root, data)
+        assert_array_equal(dataset.data, data)
 
     def testInitListOfLists(self):
         """Test that a numeric list of lists can be loaded"""
         dataset = Dataset([[9.0, 3.0, 5.0], [4.0, 8.0, 7.0]])
         array = np.asarray([[9.0, 3.0, 5.0], [4.0, 8.0, 7.0]])
-        assert_array_equal(dataset._root, array)
+        assert_array_equal(dataset.data, array)
 
     def testReject1DArray(self):
         """Test that a 1D Numpy array raises a ValueError"""
@@ -66,43 +66,62 @@ class TestDatasetConstructor(unittest.TestCase):
         with self.assertRaises(TypeError):
             Dataset([[1.0, 2.0], [3.0]])
 
+    def testSourceWriteable(self):
+        """Test that freezing the dataset does not freeze the supplied array"""
+        data = np.zeros((5, 15))
+        Dataset(data)
+        data[0, 0] = 15
+        self.assertEqual(data[0, 0], 15)
+
 class TestDatasetProperties(unittest.TestCase):
     """Test the Dataset class properties"""
+    
+    def testDataSharesMemory(self):
+        """Test the Dataset data accesses shared memory"""
+        data = np.array([[9.0, 3.0, 5.0], [4.0, 8.0, 7.0]])
+        dataset = Dataset(data)
+        self.assertTrue(np.shares_memory(dataset.data, data))
 
-    def testDatasetSize(self):
-        """Test the Dataset size property"""
+    def testDataImmutable(self):
+        """Test writing to the Dataset data raises a ValueError"""
+        dataset = Dataset(np.zeros((5, 15)))
+        with self.assertRaises(ValueError):
+            dataset.data[0, 0] = 15
+
+    def testSize(self):
+        """Test that the Dataset size property returns the correct size pair"""
         dataset = Dataset(np.zeros((5, 15)))
         self.assertEqual(dataset.size, (5, 15))
 
-    def testDatasetLength(self):
-        """Test the Dataset len dunder property"""
+    def testLength(self):
+        """Test that the Dataset len dunder returns the number of rows"""
         dataset = Dataset(np.zeros((20, 5)))
         self.assertEqual(len(dataset), 20)
 
-    def testDatasetFeatures(self):
-        """Test the Dataset loads features correctly"""
+    def testFeatures(self):
+        """Test that the Dataset loads the column features correctly"""
         features = ["a", "b", "c"]
         dataset = Dataset(np.zeros((10, 3)), features)
         self.assertEqual(dataset.features, features)
     
-    def testDatasetFeaturesWrongLength(self):
+    def testFeaturesWrongLength(self):
         """Test that a Dataset with wrong feature length raises a ValueError"""
         features = ["a", "b", "c"]
         with self.assertRaises(ValueError):
             Dataset(np.zeros((10, 10)), features)
     
-    def testDatasetFeaturesDuplicates(self):
+    def testFeaturesDuplicates(self):
         """Test that a Dataset with duplicate features raises a ValueError"""
         features = ["a", "a", "b"]
         with self.assertRaises(ValueError):
             Dataset(np.zeros((10, 3)), features)
 
-    def testDatasetFeaturesDefault(self):
-        """Test the Dataset loads a default features list correctly"""
+    def testFeaturesDefault(self):
+        """Test that Dataset loads a default features list correctly"""
         dataset = Dataset(np.zeros((10, 3)))
         self.assertEqual(dataset.features, ["0", "1", "2"])
 
-    def testDatasetFeaturesMutation(self):
+    def testFeaturesMutation(self):
         """Test that mutating the list does not change dataset features"""
         features = ["a", "b", "c"]
         dataset = Dataset(np.zeros((10, 3)), features)
@@ -130,7 +149,7 @@ class TestDatasetTable(unittest.TestCase):
     def testInitTableColumns(self):
         """Test that a table converts and columns load as feature names"""
         dataset = Dataset(Table([[1.0, 2.0], [3.0, 4.0]], columns=["x", "y"]))
-        assert_array_equal(dataset._root, np.asarray([[1.0, 2.0], [3.0, 4.0]]))
+        assert_array_equal(dataset.data, np.asarray([[1.0, 2.0], [3.0, 4.0]]))
         self.assertEqual(dataset.features, ["x", "y"])
 
     def testRejectTableConversionFailure(self):
@@ -154,7 +173,7 @@ class TestDatasetDataFrame(unittest.TestCase):
         """Test that a DataFrame converts and columns load as feature names"""
         df = pd.DataFrame({"a": [1.0, 2.0], "b": [3.0, 4.0]})
         dataset = Dataset(df)
-        assert_array_equal(dataset._root, df.to_numpy())
+        assert_array_equal(dataset.data, df.to_numpy())
         self.assertEqual(dataset.features, ["a", "b"])
 
     def testDataFrameExplicitFeatures(self):
@@ -167,7 +186,7 @@ class TestDatasetDataFrame(unittest.TestCase):
         """Test that a DataFrame with mixed types loads an object array"""
         df = pd.DataFrame({"a": [1.0, 2.0], "b": ["x", "y"]})
         dataset = Dataset(df)
-        self.assertEqual(dataset._root.dtype, np.dtype(object))
+        self.assertEqual(dataset.data.dtype, np.dtype(object))
 
 if __name__ == "__main__":
     unittest.main()

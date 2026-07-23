@@ -63,7 +63,16 @@ class Dataset:
                 raise ValueError("Features list contains duplicates")
             self._features = list(features)
 
-        self._root = data
+        # load the root as a non-writeable view of the supplied dataset
+        self._root = data.view()
+        self._root.flags.writeable = False
+
+    @property
+    def data(self) -> np.ndarray:
+        """
+        The data array of the dataset with column features and row items
+        """
+        return self._root
 
     @property
     def features(self) -> list[str]:
