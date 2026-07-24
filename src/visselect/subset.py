@@ -1,9 +1,9 @@
 # --- Imports ------------------------------------------------------------------
 
-# Third party
+# third party
 import numpy as np
 
-# Local files
+# local files
 from .dataset import Dataset
 
 

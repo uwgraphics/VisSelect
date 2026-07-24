@@ -5,16 +5,26 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "visselect"
 version = "0.1.0"
-authors = [{ name="Connor Bailey", email="cbbcbail@cs.wisc.edu" }]
 description = "A Python package for designing subset selection for data visualization by blending visualization goals as composable objective functions"
 readme = "README.md"
+requires-python = ">=3.11"
 license = "MIT"
 license-files = ["LICENSE"]
-requires-python = ">=3.11"
 dependencies = ["numpy"]
 
 [project.optional-dependencies]
-test = ["pandas"]
+test = ["pandas", "coverage"]
+
+[[project.authors]]
+name = "Connor Bailey"
+email = "cbbcbail@cs.wisc.edu"
+
+[project.urls]
+Repository = "https://github.com/uwgraphics/VisSelect"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.coverage.run]
+source = ["src/visselect"]
+branch = true
