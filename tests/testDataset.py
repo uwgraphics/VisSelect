@@ -188,5 +188,6 @@ class TestDatasetDataFrame(unittest.TestCase):
         dataset = Dataset(df)
         self.assertEqual(dataset.data.dtype, np.dtype(object))
 
+
 if __name__ == "__main__":
     unittest.main()

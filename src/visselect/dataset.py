@@ -8,7 +8,7 @@ from numpy.typing import ArrayLike
 
 class Dataset:
     """
-    A class for storing a dataset for subset selection
+    A tabular dataset for subset selection
     """
 
     def __init__(

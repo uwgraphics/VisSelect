@@ -38,9 +38,9 @@ class TestSubsetConstructor(SubsetTestCase):
         assert_array_equal(subset._indicator, np.array([True, True, True]))
     
     def testInitSubsetEmpty(self):
-        """Test that an all-False indicator constructs an empty subset"""
-        subset = Subset(self.dataset, np.array([False, False, False]))
-        assert_array_equal(subset._indicator, np.array([False, False, False]))
+        """Test that an all-False indicator raises a ValueError"""
+        with self.assertRaises(ValueError):
+            Subset(self.dataset, np.array([False, False, False]))
 
     def testInitSubsetNonBoolean(self):
         """Test that a non-boolean indicator raises a ValueError"""
@@ -88,6 +88,7 @@ class TestSubsetProperties(SubsetTestCase):
         frozen = Subset(self.dataset, self.indicator).freeze()
         with self.assertRaises(ValueError):
             frozen._indicator[1] = True
+
 
 if __name__ == "__main__":
     unittest.main()

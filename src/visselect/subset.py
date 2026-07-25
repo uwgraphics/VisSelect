@@ -11,7 +11,7 @@ from .dataset import Dataset
 
 class Subset:
     """
-    A class for storing a subset of a dataset by indicator vector selection
+    A subset of items in a dataset created by indicator vector selection
     """
 
     def __init__(
@@ -27,8 +27,8 @@ class Subset:
             indicator: The boolean vector indicating items in the subset
 
         Raises: 
-            ValueError: If indicator is not boolean or if the length of 
-                indicator does not match the length of the dataset
+            ValueError: If indicator is not boolean or if the indicator selects 
+                no items or its length does not match the length of the dataset
             TypeError: If the indicator vector is not a NumPy array
         """
 
@@ -38,7 +38,9 @@ class Subset:
             raise ValueError("Indicator vector is not a boolean selector")
         if len(indicator) != dataset.size[0]:
             raise ValueError("Lengths of indicator vector and dataset differ")
-
+        if not np.any(indicator):
+            raise ValueError("Indicator vector selects no items")
+        
         self._dataset = dataset
         self._indicator = indicator
 
