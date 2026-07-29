@@ -1,5 +1,9 @@
 # --- Imports ------------------------------------------------------------------
 
+# standard library
+from typing import Sequence
+
+# third party
 import numpy as np
 from numpy.typing import ArrayLike
 
@@ -14,7 +18,7 @@ class Dataset:
     def __init__(
         self, 
         data: ArrayLike, 
-        features: list[str] | None = None
+        features: Sequence[str] | None = None
     ) -> None:
         """
         Initialize a dataset with a 2D tabular data array
@@ -22,7 +26,7 @@ class Dataset:
         Args: 
             data: A 2D NumPy ArrayLike (ndarray, or to_numpy/asarray coercible) 
                 of a dataset in tabular form with column features and row items
-            features: A list of feature names assigned to columns of the 
+            features: A sequence of feature names assigned to columns of the 
                 dataset to support named feature queries
 
         Raises: 

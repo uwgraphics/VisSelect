@@ -21,7 +21,9 @@ except ImportError:
 # --- Test Classes -------------------------------------------------------------
 
 class TestDatasetConstructor(unittest.TestCase):
-    """Test the Dataset class constructor"""
+    """
+    Test the Dataset class constructor
+    """
 
     def testInitNumeric2DArray(self):
         """Test that a numeric 2D Numpy array can be loaded"""
@@ -74,7 +76,9 @@ class TestDatasetConstructor(unittest.TestCase):
         self.assertEqual(data[0, 0], 15)
 
 class TestDatasetProperties(unittest.TestCase):
-    """Test the Dataset class properties"""
+    """
+    Test the Dataset class properties
+    """
     
     def testDataSharesMemory(self):
         """Test the Dataset data accesses shared memory"""
@@ -129,7 +133,9 @@ class TestDatasetProperties(unittest.TestCase):
         self.assertEqual(dataset.features, ["a", "b", "c"])
 
 class Table:
-    """A minimal table object for testing to_numpy ingestion"""
+    """
+    A minimal table object for testing to_numpy ingestion
+    """
     def __init__(self, array, columns=None):
         self._array = np.asarray(array)
         if columns is not None:
@@ -139,7 +145,9 @@ class Table:
         return self._array
 
 class TestDatasetTable(unittest.TestCase):
-    """Test ingestion of table objects using to_numpy for conversion"""
+    """
+    Test ingestion of table objects using to_numpy for conversion
+    """
 
     def testInitTableNoColumns(self):
         """Test that a table converts and can be loaded with default features"""
@@ -167,7 +175,9 @@ class TestDatasetTable(unittest.TestCase):
 
 @unittest.skipUnless(PANDAS, "pandas is not installed")
 class TestDatasetDataFrame(unittest.TestCase):
-    """Test ingestion of pandas DataFrames into Dataset"""
+    """
+    Test ingestion of pandas DataFrames into Dataset
+    """
 
     def testInitDataFrame(self):
         """Test that a DataFrame converts and columns load as feature names"""

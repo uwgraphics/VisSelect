@@ -7,10 +7,11 @@ from importlib.metadata import version
 # import top-level classes
 from .dataset import Dataset
 from .subset import Subset
+from .loss import Loss
 
 # import submodules
 from . import metric
 from . import objective
 
 __version__ = version("visselect")
-__all__ = ["Dataset", "Subset", "metric", "objective"]
+__all__ = ["Dataset", "Subset", "Loss", "metric", "objective"]

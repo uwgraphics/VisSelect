@@ -15,7 +15,9 @@ from visselect import Subset
 # --- Test Classes -------------------------------------------------------------
 
 class SubsetTestCase(unittest.TestCase):
-    """Common base class for Subset test classes"""
+    """
+    Common base class for Subset test classes
+    """
 
     def setUp(self):
         """Create test dataset with example data and a test indicator"""
@@ -24,7 +26,9 @@ class SubsetTestCase(unittest.TestCase):
         self.indicator = np.array([True, False, True])
 
 class TestSubsetConstructor(SubsetTestCase):
-    """Test the Subset class constructor"""
+    """
+    Test the Subset class constructor
+    """
 
     def testInitSubset(self):
         """Test that a subset can be created from a dataset and an indicator"""
@@ -58,7 +62,9 @@ class TestSubsetConstructor(SubsetTestCase):
             Subset(self.dataset, np.array([True, False, True, True, False]))
 
 class TestSubsetProperties(SubsetTestCase):
-    """Test the Subset class properties"""
+    """
+    Test the Subset class properties
+    """
 
     def testSize(self):
         """Test that the Subset size property returns the correct size pair"""

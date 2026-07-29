@@ -3,7 +3,7 @@
 # standard library
 from typing import Callable
 
-# third party 
+# third party
 import numpy as np
 
 # local files
@@ -25,7 +25,7 @@ class Preserve:
         p: int | str = 1
     ) -> None:
         """
-        Define the metric distance to be minimized between a dataset and subset 
+        Initialize a metric metric preserving objective for a dataset 
 
         Args:
             metric: The metric function to apply to the data

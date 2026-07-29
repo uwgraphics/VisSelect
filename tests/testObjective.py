@@ -14,7 +14,9 @@ from visselect import Dataset, Subset, metric, objective
 # --- Test Classes -------------------------------------------------------------
 
 class ObjectiveTestCase(unittest.TestCase):
-    """Common base class for Objective test classes"""
+    """
+    Common base class for Objective test classes
+    """
 
     def setUp(self):
         """Create test dataset with example data and a test indicator"""
@@ -23,7 +25,9 @@ class ObjectiveTestCase(unittest.TestCase):
         self.subset = Subset(self.dataset, np.array([False, True, True]))
 
 class TestPreserve(ObjectiveTestCase):
-    """Test the preserve metric objective class"""
+    """
+    Test the preserve metric objective class
+    """
 
     def testInitPreserve(self):
         """Test that the objective can be created and dataset values cached"""
