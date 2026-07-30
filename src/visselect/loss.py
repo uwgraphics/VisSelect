@@ -6,6 +6,7 @@ from typing import Callable, Sequence, SupportsFloat
 # local files
 from .subset import Subset
 
+
 # --- Loss Function Class ------------------------------------------------------
 
 class Loss:

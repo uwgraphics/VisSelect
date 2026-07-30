@@ -7,7 +7,6 @@ from typing import Callable
 import numpy as np
 
 # local files
-from .dataset import Dataset
 from .subset import Subset
 
 
@@ -21,21 +20,23 @@ class Preserve:
     def __init__(
         self,
         metric: Callable,
-        dataset: Dataset,
         p: int | str = 1
     ) -> None:
         """
-        Initialize a metric metric preserving objective for a dataset 
+        Initialize a metric preserving objective
 
         Args:
             metric: The metric function to apply to the data
-            dataset: The dataset to evaluate the target for in metric space
             p: Specify the ord of the norm from linalg.norm NumPy options
+
+        Raises:
+            TypeError: If metric is not callable
         """
+        if not callable(metric):
+            raise TypeError("Metric is not a callable function")
+
         self._metric = metric
         self._p = p
-        self._target = metric(dataset.data)
-        self._scalar = np.ndim(self._target) == 0
 
     def __call__(
         self,
@@ -47,11 +48,12 @@ class Preserve:
         Args:
             subset: The subset to evaluate the distance from the target
         """
+        datasetMetric = subset.dataset.evaluate(self._metric)
         subsetMetric = self._metric(subset.data)
 
         # If the metric results are scalars, use the absolute difference
-        if self._scalar:
-            return np.abs(self._target - subsetMetric)
+        if np.ndim(datasetMetric) == 0:
+            return np.abs(datasetMetric - subsetMetric)
 
         # Otherwise, use np.linalg.norm for array-like metric results
-        return np.linalg.norm(self._target - subsetMetric, ord=self._p)
+        return np.linalg.norm(datasetMetric - subsetMetric, ord=self._p)

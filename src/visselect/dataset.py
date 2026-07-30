@@ -1,7 +1,7 @@
 # --- Imports ------------------------------------------------------------------
 
 # standard library
-from typing import Sequence
+from typing import Any, Callable, Sequence
 
 # third party
 import numpy as np
@@ -34,7 +34,7 @@ class Dataset:
             ValueError: If data is not 2D, data has no rows/columns, length of 
                 features and data columns differ, or features has duplicates
         """
-
+        self._characteristics = {}
         if hasattr(data, "to_numpy"): # if supported, attempt to_numpy convert
             if features is None and hasattr(data, "columns"):
                 features = [str(c) for c in data.columns]
@@ -71,6 +71,44 @@ class Dataset:
         self._root = data.view()
         self._root.flags.writeable = False
 
+    def __getattr__(self, name: str) -> Any:
+        """
+        Look up a cached characteristic of the dataset by name
+
+        Args:
+            name: The name of the characteristic of the dataset to look up
+
+        Raises: 
+            AttributeError: If the name starts with "_" or the characteristic 
+                has not been evaluated on the dataset
+        """
+        if name.startswith("_"):
+            raise AttributeError(name)
+        
+        for function in self._characteristics:
+            if getattr(function, "__name__", None) == name:
+                return self._characteristics[function]
+
+        raise AttributeError(f"Dataset has no characteristic {name}")
+
+    def __len__(self) -> int:
+        """
+        Compute the length as the number of rows in the dataset
+        """
+        return self.size[0]
+
+    def evaluate(self, function: Callable) -> Any:
+        """
+        Evaluate a metric function on the dataset and cache it
+
+        Args: 
+            function: The function to evaluate on the dataset
+        """
+        if function not in self._characteristics:
+            self._characteristics[function] = function(self.data)
+
+        return self._characteristics[function]
+
     @property
     def data(self) -> np.ndarray:
         """
@@ -93,9 +131,3 @@ class Dataset:
         The tuple (rows, columns) of the size of the dataset
         """
         return self._root.shape
-
-    def __len__(self) -> int:
-        """
-        Compute the length as the number of rows in the dataset
-        """
-        return self.size[0]

@@ -95,6 +95,11 @@ class TestSubsetProperties(SubsetTestCase):
         with self.assertRaises(ValueError):
             frozen._indicator[1] = True
 
+    def testDataset(self):
+        """Test that the Subset dataset returns the dataset selected from"""
+        subset = Subset(self.dataset, self.indicator)
+        self.assertIs(subset.dataset, self.dataset)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -22,20 +22,20 @@ class LossTestCase(unittest.TestCase):
         data = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
         self.dataset = Dataset(data)
         self.subset = Subset(self.dataset, np.array([False, True, True]))
-        self.mean = objective.Preserve(metric.mean, self.dataset)
-        self.variance = objective.Preserve(metric.variance, self.dataset)
+        self.mean = objective.Preserve(metric.mean)
+        self.variance = objective.Preserve(metric.variance)
 
 class TestLossConstructor(LossTestCase):
     """
     Test the Loss class constructor
     """
 
-    def testInitNoObjectives(self):
+    def testNoObjectives(self):
         """Test that an empty objectives list produces a ValueError"""
         with self.assertRaises(ValueError):
             Loss(objectives=[])
 
-    def testInitNoWeights(self):
+    def testNoWeights(self):
         """Test that no weights list produces a default weight of 1.0"""
         loss = Loss(objectives=[self.mean])
         self.assertEqual(loss._terms[0][0], 1.0)
@@ -50,22 +50,22 @@ class TestLossCall(LossTestCase):
     Test the loss object call function
     """
 
-    def testCallSingleObjective(self):
+    def testSingleObjective(self):
         """Test that a single objective loss returns the objective value"""
         loss = Loss([self.mean])
         self.assertEqual(loss(self.subset), 4.5)
 
-    def testCallWeighted(self):
+    def testWeighted(self):
         """Test that a weight scales the objective value"""
         loss = Loss([self.mean], [2.0])
         self.assertEqual(loss(self.subset), 9.0)
 
-    def testCallTwoObjectives(self):
+    def testTwoObjectives(self):
         """Test that two objectives sum with default weights"""
         loss = Loss([self.mean, self.variance])
         self.assertEqual(loss(self.subset), 15.75)
 
-    def testCallWeightsPerTerm(self):
+    def testTwoWeights(self):
         """Test that each weight applies to its own objective"""
         loss = Loss([self.mean, self.variance], [2.0, 1.0])
         self.assertEqual(loss(self.subset), 20.25)

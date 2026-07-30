@@ -8,7 +8,7 @@ import numpy as np
 from numpy.testing import assert_array_equal
 
 # local files
-from visselect import Dataset
+from visselect import Dataset, metric
 
 # optional dependencies
 try:
@@ -131,6 +131,54 @@ class TestDatasetProperties(unittest.TestCase):
         dataset = Dataset(np.zeros((10, 3)), features)
         features.append("d")
         self.assertEqual(dataset.features, ["a", "b", "c"])
+
+class TestDatasetCharacteristics(unittest.TestCase):
+    """
+    Test the Dataset characteristic evaluation and caching
+    """
+
+    def setUp(self):
+        """Create test dataset with example data"""
+        data = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
+        self.dataset = Dataset(data)
+
+    def testEvaluate(self):
+        """Test that evaluate returns the metric value for a function"""
+        value = self.dataset.evaluate(metric.mean)
+        assert_array_equal(value, np.array([4.0, 5.0, 6.0]))
+
+    def testEvaluateCached(self):
+        """Test that repeated evaluation returns the same cached value"""
+        first = self.dataset.evaluate(metric.mean)
+        self.assertIs(self.dataset.evaluate(metric.mean), first)
+
+    def testCharacteristicName(self):
+        """Test that an evaluated characteristic is available by name"""
+        value = self.dataset.evaluate(metric.mean)
+        self.assertIs(self.dataset.mean, value)
+
+    def testCharacteristicCustom(self):
+        """Test that a custom metric function is available by name"""
+        def total(array):
+            return np.sum(array)
+        self.dataset.evaluate(total)
+        self.assertEqual(self.dataset.total, 45.0)
+
+    def testCharacteristicEmpty(self):
+        """Test that an empty characteristic cache raises an AttributeError"""
+        with self.assertRaises(AttributeError):
+            self.dataset.mean
+
+    def testCharacteristicUnevaluated(self):
+        """Test that an unevaluated characteristic raises an AttributeError"""
+        self.dataset.evaluate(metric.mean)
+        with self.assertRaises(AttributeError):
+            self.dataset.variance
+
+    def testUnderscoreGuard(self):
+        """Test that an underscore property raises an AttributeError"""
+        with self.assertRaises(AttributeError):
+            self.dataset._help
 
 class Table:
     """
