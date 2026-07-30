@@ -8,10 +8,11 @@ from importlib.metadata import version
 from .dataset import Dataset
 from .subset import Subset
 from .loss import Loss
+from .problem import Problem
 
 # import submodules
 from . import metric
 from . import objective
 
 __version__ = version("visselect")
-__all__ = ["Dataset", "Subset", "Loss", "metric", "objective"]
+__all__ = ["Dataset", "Subset", "Loss", "Problem", "metric", "objective"]
