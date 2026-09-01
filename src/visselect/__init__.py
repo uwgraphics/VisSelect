@@ -13,6 +13,16 @@ from .problem import Problem
 # import submodules
 from . import metric
 from . import objective
+from . import scalarization
+
+__all__ = [
+    "Dataset", 
+    "Subset", 
+    "Loss", 
+    "Problem", 
+    "metric", 
+    "objective", 
+    "scalarization"
+    ]
 
 __version__ = version("visselect")
-__all__ = ["Dataset", "Subset", "Loss", "Problem", "metric", "objective"]

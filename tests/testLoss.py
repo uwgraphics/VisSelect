@@ -5,9 +5,10 @@ import unittest
 
 # third party
 import numpy as np
+from numpy.testing import assert_array_equal
 
 # local files
-from visselect import Dataset, Subset, Loss, metric, objective
+from visselect import Dataset, Subset, Loss, metric, objective, scalarization
 
 
 # --- Test Classes -------------------------------------------------------------
@@ -35,16 +36,6 @@ class TestLossConstructor(LossTestCase):
         with self.assertRaises(ValueError):
             Loss(objectives=[])
 
-    def testNoWeights(self):
-        """Test that no weights list produces a default weight of 1.0"""
-        loss = Loss(objectives=[self.mean])
-        self.assertEqual(loss._terms[0][0], 1.0)
-
-    def testDifferentLengths(self):
-        """Test weights and objectives lengths differ produces a ValueError"""
-        with self.assertRaises(ValueError): 
-            Loss([self.mean], [0.2, 0.7, 0.1])
-
 class TestLossCall(LossTestCase):
     """
     Test the loss object call function
@@ -55,9 +46,10 @@ class TestLossCall(LossTestCase):
         loss = Loss([self.mean])
         self.assertEqual(loss(self.subset), 4.5)
 
-    def testWeighted(self):
+    def testSingleObjectiveWeighted(self):
         """Test that a weight scales the objective value"""
-        loss = Loss([self.mean], [2.0])
+        linear = scalarization.WeightedSum([2.0])
+        loss = Loss([self.mean], linear)
         self.assertEqual(loss(self.subset), 9.0)
 
     def testTwoObjectives(self):
@@ -65,10 +57,41 @@ class TestLossCall(LossTestCase):
         loss = Loss([self.mean, self.variance])
         self.assertEqual(loss(self.subset), 15.75)
 
-    def testTwoWeights(self):
+    def testTwoObjectivesWeighted(self):
         """Test that each weight applies to its own objective"""
-        loss = Loss([self.mean, self.variance], [2.0, 1.0])
+        linear = scalarization.WeightedSum([2.0, 1.0])
+        loss = Loss([self.mean, self.variance], linear)
         self.assertEqual(loss(self.subset), 20.25)
+
+class TestLossProperties(LossTestCase):
+    """
+    Test the loss object properties
+    """
+
+    def testSingleObjectiveLength(self):
+        """Test that a single objective loss has a length of 1"""
+        loss = Loss([self.mean])
+        self.assertEqual(len(loss), 1)
+
+    def testTwoObjectiveLength(self):
+        """Test that the length of loss with two objectives is 2"""
+        loss = Loss([self.mean, self.variance])
+        self.assertEqual(len(loss), 2)
+
+    def testDefaultScalarization(self):
+        """Test that the default scalarization method is the WeightedSum"""
+        loss = Loss([self.mean])
+        self.assertIsInstance(loss.scalarization, scalarization.WeightedSum)
+
+    def testObjectivesProperty(self):
+        """Test that the objectives property returns the correct objectives"""
+        loss = Loss([self.mean, self.variance])
+        self.assertEqual(loss.objectives, [self.mean, self.variance])
+
+    def testTwoObjectivesVectorMethod(self):
+        """Test that the vector method returns the vector with correct values"""
+        loss = Loss([self.mean, self.variance])
+        assert_array_equal(loss.vector(self.subset), np.asarray([4.5, 11.25]))
 
 if __name__ == "__main__":
     unittest.main()

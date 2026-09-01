@@ -1,57 +1,80 @@
 # --- Imports ------------------------------------------------------------------
 
 # standard library
-from typing import Callable, Sequence, SupportsFloat
+from typing import Callable, Sequence
+
+# third party
+import numpy as np
 
 # local files
 from .subset import Subset
+from .scalarization import WeightedSum
 
 
 # --- Loss Function Class ------------------------------------------------------
 
 class Loss:
     """
-    A loss function defined by one or more objectives and corresponding weights
+    A loss function defined by a set of objectives and a scalarization
     """
 
     def __init__(
         self,
         objectives: Sequence[Callable],
-        weights: Sequence[SupportsFloat] | None = None,
+        scalarization: Callable | None = None
     ) -> None:
         """
-        Initialize a loss function with one or more weighted objectives
+        Initialize a loss function with a set of objectives and a scalarization
 
         Args:
             objectives: A sequence of objective functions
-            weights: Corresponding sequence of weights to apply to objectives
+            scalarization: A method for scalarizing the objective-space vector
 
         Raises: 
-            ValueError: if objectives list is empty or weights and objectives 
-                do not have the same length
+            ValueError: if objectives list is empty
         """
         if len(objectives) < 1:
             raise ValueError("Objectives list is empty")
-        if weights is None:
-            weights = [1.0] * len(objectives)
-        if len(weights) != len(objectives):
-            raise ValueError("Lengths of weights and objectives differ")
+        if scalarization is None:
+            scalarization = WeightedSum()
 
-        weights = [float(w) for w in weights]
-        self._terms = list(zip(weights, objectives))
+        self._objectives = list(objectives)
+        self._scalarization = scalarization
 
-    def __call__(
-        self,
-        subset: Subset
-    ) -> float:
+    def vector(self, subset: Subset) -> np.ndarray:
         """
-        Evaluate the weighted sum of the objectives on a subset
+        The objective space vector from evaluating each objective on the subset
+
+        Args: 
+            subset: The subset to evaluate the objective-space vector on
+        """
+        return np.array([objective(subset) for objective in self._objectives])
+
+    def __call__(self, subset: Subset) -> float:
+        """
+        Evaluate the scalarization of the objective-space vector
 
         Args: 
             subset: The subset to evaluate the loss on
         """
-        loss = 0.0
-        for weight, objective in self._terms:
-            loss += weight * objective(subset)
+        return self._scalarization(self.vector(subset))
+    
+    def __len__(self) -> int:
+        """
+        Compute the length as the number of objectives in the set
+        """
+        return len(self._objectives)
 
-        return loss
+    @property
+    def objectives(self) -> list[Callable]:
+        """
+        A sequence of objective functions
+        """
+        return self._objectives
+
+    @property
+    def scalarization(self) -> Callable:
+        """
+        A method for scalarizing the objective-space vector
+        """
+        return self._scalarization
