@@ -9,17 +9,22 @@ from .dataset import Dataset
 from .subset import Subset
 from .loss import Loss
 from .problem import Problem
+from .solver import Solver
 
 # import submodules
+from . import algorithm
 from . import metric
 from . import objective
 from . import scalarization
+
 
 __all__ = [
     "Dataset", 
     "Subset", 
     "Loss", 
     "Problem", 
+    "Solver",
+    "algorithm",
     "metric", 
     "objective", 
     "scalarization"
