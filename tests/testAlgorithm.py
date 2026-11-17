@@ -7,8 +7,8 @@ import unittest
 import numpy as np
 
 # local files
-from visselect import Dataset, Loss, Problem, metric, objective
-from visselect.algorithm import Random
+from visselect import Dataset, Loss, Problem, Solver, metric, objective
+from visselect.algorithm import GreedySwap, Random
 
 
 # --- Test Classes -------------------------------------------------------------
@@ -60,6 +60,33 @@ class TestRandomSelection(AlgorithmTestCase):
         frozen = subset.freeze()
         next(randomSelectionRun)
         self.assertFalse(np.array_equal(subset._indicator, frozen._indicator))
+
+class TestGreedySwap(AlgorithmTestCase):
+    """
+    Test the greedy swap algorithm
+    """
+
+    def testEvaluations(self):
+        """Test that a run tries every swap once, keeping the problem size"""
+        count = 0
+        for subset, loss in GreedySwap(seed=0)(self.problem):
+            self.assertEqual(len(subset), self.problem.size)
+            self.assertEqual(loss, float(self.problem.loss(subset)))
+            count += 1
+        self.assertEqual(count, 1 + (20 - 5) * 5)
+
+    def testImproves(self):
+        """Test that the result is no worse than the random starting subset"""
+        start = next(iter(Random(seed=0)(self.problem)))[1]
+        greedy = Solver(GreedySwap(seed=0))(self.problem)
+        self.assertLessEqual(greedy._loss, start)
+
+    def testSeed(self):
+        """Test that a seed reproduces a run"""
+        algorithm = GreedySwap(seed=3)
+        first = [loss for _, loss in algorithm(self.problem)]
+        repeat = [loss for _, loss in algorithm(self.problem)]
+        self.assertEqual(first, repeat)
 
 
 if __name__ == "__main__":

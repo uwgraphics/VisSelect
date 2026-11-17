@@ -69,3 +69,67 @@ class Random:
         The random seed for reproducibility
         """
         return self._seed
+
+
+class GreedySwap:
+    """
+    Selects a subset by swapping out items and keeping those that lower the loss
+    """
+
+    def __init__(self, seed: int | None = None) -> None:
+        """
+        Initialize a greedy swap algorithm
+
+        Args:
+            seed: The random seed for reproducibility
+        """
+        self._seed = seed
+
+    def __call__(
+        self,
+        problem: Problem,
+    ) -> Iterator[tuple[Subset, float]]:
+        """
+        Starts from a random subset and swaps an item in if it improves the loss
+
+        Args:
+            problem: The subset selection problem definition to solve
+        """
+        rng = np.random.default_rng(self._seed)
+        length = len(problem.dataset)
+        indicator = np.zeros(length, dtype=bool)
+        members = rng.choice(length, size=problem.size, replace=False)
+        indicator[members] = True
+        subset = Subset(problem.dataset, indicator)
+
+        loss = float(problem.loss(subset))
+        yield subset, loss
+
+        for item in rng.permutation(np.flatnonzero(~indicator)):
+            bestLoss, bestPosition = loss, None
+
+            # try swapping the item with each member, reverting after each try
+            for position, member in enumerate(members):
+                indicator[member] = False
+                indicator[item] = True
+                swapLoss = float(problem.loss(subset))
+                yield subset, swapLoss
+                indicator[item] = False
+                indicator[member] = True
+
+                if swapLoss < bestLoss:
+                    bestLoss, bestPosition = swapLoss, position
+
+            # keep the best swap if it improved on the current subset
+            if bestPosition is not None:
+                indicator[members[bestPosition]] = False
+                indicator[item] = True
+                members[bestPosition] = item
+                loss = bestLoss
+
+    @property
+    def seed(self) -> int | None:
+        """
+        The random seed for reproducibility
+        """
+        return self._seed

@@ -28,6 +28,6 @@ __all__ = [
     "metric", 
     "objective", 
     "scalarization"
-    ]
+]
 
 __version__ = version("visselect")
