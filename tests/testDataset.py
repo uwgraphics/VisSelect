@@ -1,7 +1,10 @@
 # --- Imports ------------------------------------------------------------------
 
 # standard library
+import io
+import tempfile
 import unittest
+from pathlib import Path
 
 # third party
 import numpy as np
@@ -42,6 +45,27 @@ class TestDatasetConstructor(unittest.TestCase):
         dataset = Dataset([[9.0, 3.0, 5.0], [4.0, 8.0, 7.0]])
         array = np.asarray([[9.0, 3.0, 5.0], [4.0, 8.0, 7.0]])
         assert_array_equal(dataset.data, array)
+
+    def testInitStream(self):
+        """Test that a csv text stream can be loaded with header features"""
+        dataset = Dataset(io.StringIO("a,b\n1,2\n3,4\n"))
+        assert_array_equal(dataset.data, [[1.0, 2.0], [3.0, 4.0]])
+        self.assertEqual(dataset.features, ["a", "b"])
+
+    def testInitPath(self):
+        """Test that a csv file can be loaded from a string or Path filepath"""
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "data.csv"
+            path.write_text("a,b\n1,2\n3,4\n")
+            for source in (str(path), path):
+                dataset = Dataset(source)
+                assert_array_equal(dataset.data, [[1.0, 2.0], [3.0, 4.0]])
+                self.assertEqual(dataset.features, ["a", "b"])
+
+    def testRejectEmptyFile(self):
+        """Test that an empty csv file raises a ValueError"""
+        with self.assertRaises(ValueError):
+            Dataset(io.StringIO(""))
 
     def testReject1DArray(self):
         """Test that a 1D Numpy array raises a ValueError"""

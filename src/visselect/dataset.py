@@ -1,7 +1,10 @@
 # --- Imports ------------------------------------------------------------------
 
 # standard library
-from typing import Any, Callable, Sequence
+import csv
+from contextlib import nullcontext
+from os import PathLike
+from typing import Any, Callable, Sequence, TextIO
 
 # third party
 import numpy as np
@@ -17,27 +20,35 @@ class Dataset:
 
     def __init__(
         self, 
-        data: ArrayLike, 
+        data: ArrayLike | str | PathLike | TextIO,
         features: Sequence[str] | None = None
     ) -> None:
         """
         Initialize a dataset with a 2D tabular data array
-        
-        Args: 
-            data: A 2D NumPy ArrayLike (ndarray, or to_numpy/asarray coercible) 
-                of a dataset in tabular form with column features and row items
-            features: A sequence of feature names assigned to columns of the 
-                dataset to support named feature queries
 
-        Raises: 
+        Args:
+            data: A 2D NumPy ArrayLike, a path to a csv file, or a text stream
+                of a csv file containing a dataset in tabular form with column
+                features and row items
+            features: A sequence of feature names assigned to columns of the
+                dataset to support named feature queries, which take precedence
+                over features in csv headers or DataFrame columns
+
+        Raises:
             TypeError: If data cannot be converted to a NumPy ndarray
-            ValueError: If data is not 2D, data has no rows/columns, length of 
-                features and data columns differ, or features has duplicates
+            ValueError: If data is not 2D, data has no rows/columns, length of
+                features and data columns differ, features has duplicates, or
+                a csv file is empty or has non-numeric or ragged rows
+            FileNotFoundError: If a csv file path does not exist
         """
         self._characteristics = {}
-        if hasattr(data, "to_numpy"): # if supported, attempt to_numpy convert
-            if features is None and hasattr(data, "columns"):
-                features = [str(c) for c in data.columns]
+        dataFeatures = None # feature names supplied by the data itself, if any
+
+        if isinstance(data, (str, PathLike)) or hasattr(data, "read"): # if file
+            data, dataFeatures = self._read(data)
+        elif hasattr(data, "to_numpy"): # if supported, attempt to_numpy convert
+            if hasattr(data, "columns"):
+                dataFeatures = [str(c) for c in data.columns]
             try:
                 data = data.to_numpy()
             except Exception as e:
@@ -60,6 +71,8 @@ class Dataset:
             raise ValueError("Data has no features")
         
         # load and verify the feature column names if provided
+        if features is None:
+            features = dataFeatures
         if features is not None:
             if len(features) != data.shape[1]:
                 raise ValueError("Lengths of features and data columns differ")
@@ -96,6 +109,35 @@ class Dataset:
         Compute the length as the number of rows in the dataset
         """
         return self.size[0]
+
+    def _read(
+        self,
+        source: str | PathLike | TextIO
+    ) -> tuple[np.ndarray, list[str]]:
+        """
+        Reads a dataset from a csv file with a header row of feature names
+
+        Args:
+            source: A path to a csv file, or a text stream of a csv file which
+                is read from its current position and left open
+
+        Raises:
+            FileNotFoundError: If a filepath is passed but does not exist
+            ValueError: If the file is empty or has non-numeric or ragged rows
+        """
+        if isinstance(source, (str, PathLike)): # open paths, use streams as is
+            context = open(source, encoding="utf-8")
+        else:
+            context = nullcontext(source)
+
+        with context as file:
+            line = file.readline()
+            if not line.strip():
+                raise ValueError("File is empty")
+            header = next(csv.reader([line]))
+            data = np.loadtxt(file, delimiter=",", ndmin=2)
+
+        return data, header
 
     def evaluate(self, function: Callable) -> Any:
         """
