@@ -48,10 +48,16 @@ def buildCatalog() -> dict[str, dict[str, dict]]:
     # expand objectives that take a metric into one objective per metric
     objectives = {}
     for name, constructor in public[objective].items():
-        if "metric" in inspect.signature(constructor).parameters:
+        parameters = inspect.signature(constructor).parameters
+        if "metric" in parameters:
             for metricName, function in public[metric].items():
+                bound = {"metric": function}
+                # a scalar metric's difference is the same under every norm
+                returns = inspect.signature(function).return_annotation
+                if returns is float and "p" in parameters:
+                    bound["p"] = 1
                 objectives[f"{name} {metricName}"] = partial(
-                    constructor, metric=function
+                    constructor, **bound
                 )
         else:
             objectives[name] = constructor
@@ -157,6 +163,7 @@ class Server(ThreadingHTTPServer):
                     improved = {
                         "status": "improved",
                         "evaluation": evaluation,
+                        "time": results._time,
                         "loss": results._loss,
                         "subset": np.flatnonzero(best.indicator).tolist()
                     }
@@ -171,7 +178,11 @@ class Server(ThreadingHTTPServer):
 
         # the best loss and subset are those of the last improvement
         status = "stopped" if stopped else "finished"
-        ended = {"status": status, "evaluation": evaluation}
+        ended = {
+            "status": status,
+            "evaluation": evaluation,
+            "time": results._time
+        }
         self.publish(improved | ended)
 
     def stop(self) -> None:
@@ -212,7 +223,8 @@ class Handler(SimpleHTTPRequestHandler):
             try:
                 while True:
                     message = listener.get()
-                    self.wfile.write(f"data: {json.dumps(message)}\n\n".encode())
+                    event = f"data: {json.dumps(message)}\n\n"
+                    self.wfile.write(event.encode())
                     self.wfile.flush()
             except (BrokenPipeError, ConnectionResetError): # the page closed
                 pass

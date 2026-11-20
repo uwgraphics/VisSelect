@@ -102,7 +102,12 @@ selectSubset.addEventListener("click", async () => {
         settings: readSettings(algorithmSettings),
     };
 
-    selectSubset.disabled = true;
+    selectionInfo.textContent = "Selecting...";
+    setRunning(true);
+    improvements = [];
+    evaluations = 1;
+    drawLossChart(improvements, evaluations);
+
     const response = await fetch("/select", {
         method: "POST",
         headers: {"Content-Type": "application/json"},
@@ -110,15 +115,9 @@ selectSubset.addEventListener("click", async () => {
     });
     if (!response.ok) {
         const reply = await response.json();
+        setRunning(false);
         selectionInfo.textContent = `Could not select a subset: ${reply.error}`;
-        updateObjectives();
-        return;
     }
-    selectionInfo.textContent = "Selecting...";
-    setRunning(true);
-    improvements = [];
-    evaluations = 1;
-    drawLossChart(improvements, evaluations);
 });
 
 stopSelection.addEventListener("click", () => {
@@ -142,8 +141,9 @@ events.addEventListener("message", event => {
         improvements.push([message.evaluation, message.loss]);
     }
     const state = {improved: " so far", stopped: " (stopped)"};
+    const time = message.time.toFixed(3);
     selectionInfo.textContent = `loss ${message.loss} after ${evaluations}`
-        + ` evaluations${state[message.status] ?? ""}`;
+        + ` evaluations in ${time} s${state[message.status] ?? ""}`;
     scheduleDraw();
 });
 

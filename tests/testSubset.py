@@ -100,6 +100,11 @@ class TestSubsetProperties(SubsetTestCase):
         subset = Subset(self.dataset, self.indicator)
         self.assertIs(subset.dataset, self.dataset)
 
+    def testIndicator(self):
+        """Test that the Subset indicator returns the indicator it selects by"""
+        subset = Subset(self.dataset, self.indicator)
+        self.assertIs(subset.indicator, self.indicator)
+
 
 if __name__ == "__main__":
     unittest.main()
