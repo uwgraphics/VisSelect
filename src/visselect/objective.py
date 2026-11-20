@@ -5,6 +5,7 @@ from typing import Callable
 
 # third party
 import numpy as np
+from scipy.spatial.distance import cdist
 
 # local files
 from .subset import Subset
@@ -57,3 +58,28 @@ class Preserve:
 
         # Otherwise, use np.linalg.norm for array-like metric results
         return np.linalg.norm(datasetMetric - subsetMetric, ord=self._p)
+
+
+# --- Distinctness Class -------------------------------------------------------
+
+class Distinctness:
+    """
+    Maximize the distance from each item in the subset to its nearest neighbor
+    """
+
+    def __call__(
+        self,
+        subset: Subset
+    ) -> float:
+        """
+        Evaluate the negative sum of each item's distance to its nearest
+        neighbor in the subset, computed from the subset's own distances
+
+        Args:
+            subset: The subset to evaluate the distinctness of
+        """
+        data = subset.data
+        distances = cdist(data, data)
+        np.fill_diagonal(distances, np.inf) # an item is not its own neighbor
+
+        return -np.sum(np.min(distances, axis=1))

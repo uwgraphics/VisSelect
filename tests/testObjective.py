@@ -62,6 +62,17 @@ class TestPreserve(ObjectiveTestCase):
         with self.assertRaises(TypeError):
             objective.Preserve("mean")
 
+class TestDistinctness(ObjectiveTestCase):
+    """
+    Test the distinctness objective class
+    """
+
+    def testNearestNeighbors(self):
+        """Test that each item's distance to its nearest neighbor is summed"""
+        dataset = Dataset(np.array([[0.0], [1.0], [3.0]]))
+        subset = Subset(dataset, np.array([True, True, True]))
+        self.assertEqual(objective.Distinctness()(subset), -(1 + 1 + 2))
+
 
 if __name__ == "__main__":
     unittest.main()
