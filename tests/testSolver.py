@@ -46,6 +46,15 @@ class TestSolver(unittest.TestCase):
         self.assertEqual(unlogged.losses, [])
         self.assertEqual(unlogged._loss, logged._loss)
 
+    def testStop(self):
+        """Test that closing the steps early keeps the results so far"""
+        steps = Solver(Random(samples=20, seed=0)).steps(self.problem)
+        next(steps)
+        results = next(steps)
+        steps.close()
+        self.assertEqual(len(results.losses), 2)
+        self.assertEqual(results._status, "stopped")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -63,7 +63,14 @@ class Subset:
         """
         The data array of the items selected in the subset
         """
-        return self._dataset.data[self._indicator]
+        return np.compress(self._indicator, self._dataset.data, axis=0)
+
+    @property
+    def indicator(self) -> np.ndarray:
+        """
+        The indicator array of the items selected in the subset
+        """
+        return self._indicator
 
     @property
     def dataset(self) -> Dataset:

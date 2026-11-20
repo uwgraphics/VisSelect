@@ -27,7 +27,7 @@ class Problem:
             size: The size of the subset to select
 
         Raises: 
-            ValueError: if size is less than 1 or greater than dataset length
+            ValueError: if size is < 1 or ≥ dataset length
         """
         if size < 1:
             raise ValueError("Size < 1")

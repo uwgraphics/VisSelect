@@ -1,7 +1,7 @@
 # --- Imports ------------------------------------------------------------------
 
 # standard library
-from typing import Callable
+from typing import Callable, Iterator
 
 # local files
 from .problem import Problem
@@ -42,21 +42,39 @@ class Solver:
             problem: The subset selection problem definition to solve
             log: Whether to log the loss and time of every evaluation
         """
+        for results in self.steps(problem, log):
+            pass
+        return results
+
+    def steps(
+        self, 
+        problem: Problem, 
+        log: bool = True
+    ) -> Iterator[Results]:
+        """
+        Runs the algorithm on a problem, yielding results after each evaluation
+
+        Args:
+            problem: The subset selection problem definition to solve
+            log: Whether to log the loss and time of every evaluation
+        """
         seed = getattr(self._algorithm, "seed", None)
         results = Results(problem, log=log, seed=seed)
         run = self._algorithm(problem)
         timer = Timer()
 
-        while True:
-            with timer:
-                candidate = next(run, None)
-            if candidate is None:
-                break
-            subset, loss = candidate
-            results._record(subset, loss, timer.elapsed)
+        try:
+            while True:
+                with timer:
+                    candidate = next(run, None)
+                if candidate is None:
+                    break
+                subset, loss = candidate
+                results._record(subset, loss, timer.elapsed)
 
-        results._complete("finished", timer.elapsed)
-        return results
-
-
+                yield results
+        except GeneratorExit:  # the caller closed the generator early
+            results._complete("stopped", timer.elapsed)
+            return
         
+        results._complete("finished", timer.elapsed)
