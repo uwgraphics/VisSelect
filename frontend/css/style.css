@@ -1,0 +1,20 @@
+.panels {
+    display: flex;
+}
+
+#algorithmSettings input {
+    width: 6em;
+}
+
+#chart circle {
+    opacity: 0.4;
+}
+
+#chart circle.selected {
+    opacity: 1;
+}
+
+#lossChart .best {
+    fill: none;
+    stroke: currentColor;
+}

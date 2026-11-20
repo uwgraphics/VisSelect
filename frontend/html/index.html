@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <link rel="stylesheet" href="/css/style.css">
+        <script src="/js/d3.js"></script>
+        <script type="module" src="/js/main.js"></script>
+    </head>
+    <body>
+        <h1></h1>
+        <input id="datasetInput" type="file">
+        <p id="datasetInfo"></p>
+        <p id="featureControls" hidden>
+            <label>x: <select id="xFeature"></select></label>
+            <label>y: <select id="yFeature"></select></label>
+        </p>
+        
+        <div class="panels">
+            <div id="selectionControls" hidden>
+                <div id="objectives"></div>
+                <select id="addObjective">
+                    <option disabled selected>Add objective</option>
+                </select>
+
+                <p>
+                    <label>
+                        Size
+                        <input id="subsetSize" type="number" min="1" step="1">
+                    </label>
+                    <label>
+                        Algorithm
+                        <select id="algorithm"></select>
+                    </label>
+                    <span id="algorithmSettings"></span>
+                </p>
+
+                <button id="selectSubset" type="button" disabled>
+                    Select Subset
+                </button>
+                <button id="stopSelection" type="button" hidden>Stop</button>
+                <p id="selectionInfo"></p>
+            </div>
+            <div id="chart"></div>
+            <div id="lossChart"></div>
+        </div>
+    </body>
+</html>
