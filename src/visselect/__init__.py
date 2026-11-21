@@ -13,6 +13,7 @@ from .solver import Solver
 
 # import submodules
 from . import algorithm
+from . import generate
 from . import metric
 from . import objective
 from . import scalarization
@@ -25,7 +26,8 @@ __all__ = [
     "Problem", 
     "Solver",
     "algorithm",
-    "metric", 
+    "generate",
+    "metric",
     "objective", 
     "scalarization"
 ]

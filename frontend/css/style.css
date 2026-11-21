@@ -2,7 +2,8 @@
     display: flex;
 }
 
-#algorithmSettings input {
+#algorithmSettings input,
+#generatorSettings input {
     width: 6em;
 }
 

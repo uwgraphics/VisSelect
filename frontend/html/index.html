@@ -8,13 +8,28 @@
     </head>
     <body>
         <h1></h1>
-        <input id="datasetInput" type="file">
+        <section id="loadDataset">
+            <h2>Load Dataset</h2>
+            <input id="datasetInput" type="file">
+            <button id="randomGeneration" type="button">
+                Random generation
+            </button>
+            <p id="generatorControls" hidden>
+                <select id="generator"></select>
+                <span id="generatorSettings"></span>
+                <button id="backToStart" type="button">Back</button>
+                <button id="generateDataset" type="button">Generate</button>
+            </p>
+        </section>
+
+        <h2>Dataset Information</h2>
         <p id="datasetInfo"></p>
         <p id="featureControls" hidden>
             <label>x: <select id="xFeature"></select></label>
             <label>y: <select id="yFeature"></select></label>
         </p>
         
+        <h2>Define Selection</h2>
         <div class="panels">
             <div id="selectionControls" hidden>
                 <div id="objectives"></div>

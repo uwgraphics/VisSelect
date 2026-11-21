@@ -1,4 +1,11 @@
+const loadDataset = document.getElementById("loadDataset");
 const datasetInput = document.getElementById("datasetInput");
+const randomGeneration = document.getElementById("randomGeneration");
+const generatorControls = document.getElementById("generatorControls");
+const generator = document.getElementById("generator");
+const generatorSettings = document.getElementById("generatorSettings");
+const backToStart = document.getElementById("backToStart");
+const generateDataset = document.getElementById("generateDataset");
 const datasetInfo = document.getElementById("datasetInfo");
 const chart = document.getElementById("chart");
 const lossChart = document.getElementById("lossChart");
@@ -34,27 +41,42 @@ datasetInput.addEventListener("change", async () => {
         console.error(response.status, await response.text());
         return;
     }
-    const reply = await response.json();
-    const [rows, columns] = reply.size;
-    datasetInfo.textContent = `${rows} rows × ${columns} columns`;
-    data = reply.data;
-    subset = new Set();
-    improvements = [];
-    selectionInfo.textContent = "";
-    lossChart.replaceChildren();
-
-    for (const select of [xFeature, yFeature]) {
-        select.replaceChildren(...reply.features.map((name, index) =>
-            new Option(name, index)));
-    }
-    xFeature.value = 0;
-    yFeature.value = Math.min(1, columns - 1);
-    featureControls.hidden = false;
-    subsetSize.max = rows - 1;
-    subsetSize.value = Math.min(10, rows - 1);
-    selectionControls.hidden = false;
-    redraw();
+    showDataset(await response.json());
 });
+
+// replace the ways to load a dataset with the options for random generation
+randomGeneration.addEventListener("click", () => {
+    datasetInput.hidden = true;
+    randomGeneration.hidden = true;
+    generatorControls.hidden = false;
+});
+
+// go back to choosing between loading a file and random generation
+backToStart.addEventListener("click", () => {
+    datasetInput.hidden = false;
+    randomGeneration.hidden = false;
+    generatorControls.hidden = true;
+});
+
+generateDataset.addEventListener("click", async () => {
+    const request = {
+        generator: generator.value,
+        settings: readSettings(generatorSettings),
+    };
+    const response = await fetch("/generate", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(request),
+    });
+    const reply = await response.json();
+    if (!response.ok) {
+        datasetInfo.textContent = `Could not generate data: ${reply.error}`;
+        return;
+    }
+    showDataset(reply);
+});
+
+generator.addEventListener("change", showGeneratorSettings);
 
 xFeature.addEventListener("change", redraw);
 yFeature.addEventListener("change", redraw);
@@ -172,47 +194,94 @@ function showAlgorithmSettings() {
 }
 
 /**
+ * Show a newly loaded dataset, clearing the last selection, and reveal the
+ * feature and selection controls
+ * @param {Object} reply The dataset's feature names, size and data by feature
+ */
+function showDataset(reply) {
+    const [rows, columns] = reply.size;
+    datasetInfo.textContent = `${rows} rows × ${columns} columns`;
+    data = reply.data;
+    subset = new Set();
+    improvements = [];
+    selectionInfo.textContent = "";
+    lossChart.replaceChildren();
+
+    for (const select of [xFeature, yFeature]) {
+        select.replaceChildren(...reply.features.map((name, index) =>
+            new Option(name, index)));
+    }
+    xFeature.value = 0;
+    yFeature.value = Math.min(1, columns - 1);
+    featureControls.hidden = false;
+    subsetSize.max = rows - 1;
+    subsetSize.value = Math.min(10, rows - 1);
+    selectionControls.hidden = false;
+    redraw();
+}
+
+/**
+ * Show the settings of the chosen dataset generator
+ */
+function showGeneratorSettings() {
+    const settings = settingInputs(catalog.generators[generator.value]);
+    generatorSettings.replaceChildren(...settings);
+}
+
+/**
  * Create a labelled input for each setting filled with its default: a
  * dropdown for a setting with a fixed set of choices, otherwise a number
- * input where empty means None
- * @param {Object} settings Each setting's default and its choices, or null
- * @returns {HTMLLabelElement[]} The labelled inputs, one per setting
+ * input, whole and at least 0 or decimal, where empty means None, with two
+ * inputs for a setting that takes a pair
+ * @param {Object} settings Each setting's default, its choices or null, and
+ *     whether it is an integer and whether it is a pair
+ * @returns {HTMLLabelElement[]} The labelled inputs, one label per setting
  */
 function settingInputs(settings) {
-    return Object.entries(settings).map(([name, {default: value, choices}]) => {
-        let input;
-        if (choices) {
-            input = document.createElement("select");
-            input.append(...choices.map(choice =>
-                new Option(choice === "inf" ? "∞" : choice, choice)));
-        } else {
-            input = document.createElement("input");
-            input.type = "number";
-            input.min = 0;
-            input.step = 1;
-        }
-        input.value = value ?? "";
-        input.dataset.setting = name;
+    return Object.entries(settings).map(([name, setting]) => {
+        const {default: value, choices, integer, pair} = setting;
+        const values = pair ? value ?? [null, null] : [value];
+        const inputs = values.map(value => {
+            let input;
+            if (choices) {
+                input = document.createElement("select");
+                input.append(...choices.map(choice =>
+                    new Option(choice === "inf" ? "∞" : choice, choice)));
+            } else {
+                input = document.createElement("input");
+                input.type = "number";
+                input.step = integer ? 1 : "any";
+                if (integer) input.min = 0;
+            }
+            input.value = value ?? "";
+            input.dataset.setting = name;
+            if (pair) input.dataset.pair = "";
+            return input;
+        });
         const label = document.createElement("label");
-        label.append(`${name} `, input, " ");
+        label.append(`${name} `, ...inputs, " ");
         return label;
     });
 }
 
 /**
  * Read the values of the setting inputs inside an element, by setting name,
- * as numbers, with empty as null and named values such as "inf" kept as text
+ * as numbers, with empty as null and named values such as "inf" kept as text,
+ * and the two values of a pair setting together in an array
  * @param {HTMLElement} element The element containing the setting inputs
  * @returns {Object} The value of each setting
  */
 function readSettings(element) {
-    const inputs = [...element.querySelectorAll("[data-setting]")];
-    return Object.fromEntries(inputs.map(input => {
+    const settings = {};
+    for (const input of element.querySelectorAll("[data-setting]")) {
+        const name = input.dataset.setting;
         const number = Number(input.value);
         const value = input.value === "" ? null
             : Number.isNaN(number) ? input.value : number;
-        return [input.dataset.setting, value];
-    }));
+        if ("pair" in input.dataset) (settings[name] ??= []).push(value);
+        else settings[name] = value;
+    }
+    return settings;
 }
 
 /**
@@ -222,8 +291,9 @@ function readSettings(element) {
  */
 function setRunning(running) {
     const kinds = "input, select, button";
-    const controls = selectionControls.querySelectorAll(kinds);
-    for (const control of [datasetInput, ...controls]) {
+    const sections = [loadDataset, selectionControls];
+    const controls = sections.flatMap(s => [...s.querySelectorAll(kinds)]);
+    for (const control of controls) {
         control.disabled = running;
     }
     stopSelection.disabled = false;
@@ -346,8 +416,11 @@ function drawLossChart(improvements, evaluations) {
     lossChart.replaceChildren(svg.node());
 }
 
-// fill the objective and algorithm dropdowns from the package's catalog
+// fill the objective, algorithm and generator dropdowns from the catalog
 const catalog = await (await fetch("/catalog")).json();
+const generatorNames = Object.keys(catalog.generators);
+generator.append(...generatorNames.map(name => new Option(name)));
+showGeneratorSettings();
 const objectiveNames = Object.keys(catalog.objectives);
 addObjective.append(...objectiveNames.map(name => new Option(name)));
 const algorithmNames = Object.keys(catalog.algorithms);

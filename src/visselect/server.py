@@ -9,13 +9,13 @@ import threading
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Iterator
+from typing import Iterator, get_args, get_origin
 
 # third party
 import numpy as np
 
 # local files
-from . import algorithm, metric, objective
+from . import algorithm, generate, metric, objective
 from .dataset import Dataset
 from .loss import Loss
 from .problem import Problem
@@ -27,13 +27,15 @@ from .solver import Solver
 
 def buildCatalog() -> dict[str, dict[str, dict]]:
     """
-    Build the catalog of all objectives and algorithms and available settings
+    Build the catalog of all objectives, algorithms and dataset generators and
+    their available settings
     """
     # the public functions or classes defined in each module of the package
     searches = [
         (metric, inspect.isfunction),
         (objective, inspect.isclass),
         (algorithm, inspect.isclass),
+        (generate, inspect.isfunction),
     ]
 
     public = {}
@@ -63,7 +65,11 @@ def buildCatalog() -> dict[str, dict[str, dict]]:
             objectives[name] = constructor
 
     # describe each constructor's settings for the page from its signature
-    sections = {"objectives": objectives, "algorithms": public[algorithm]}
+    sections = {
+        "objectives": objectives,
+        "algorithms": public[algorithm],
+        "generators": public[generate],
+    }
     catalog = {}
     for section, constructors in sections.items():
         catalog[section] = {}
@@ -80,12 +86,23 @@ def buildCatalog() -> dict[str, dict[str, dict]]:
                 default = None if required else parameter.default
                 norm = name == "p" # a norm order, with infinity sent as "inf"
                 choices = [1, 2, "inf"] if norm else None
-                settings[name] = {"default": default, "choices": choices}
+
+                # whole or decimal numbers, from the annotation, and whether
+                # the setting takes a pair such as an interval
+                annotation = parameter.annotation
+                types = get_args(annotation) or (annotation,)
+                integer = int in types and float not in types
+                pair = get_origin(annotation) is tuple
+                settings[name] = {
+                    "default": default,
+                    "choices": choices,
+                    "integer": integer,
+                    "pair": pair
+                }
             catalog[section][entry] = {
                 "constructor": constructor,
                 "settings": settings
             }
-
     return catalog
 
 # --- Server and Handler Classes -----------------------------------------------
@@ -104,6 +121,22 @@ class Server(ThreadingHTTPServer):
         self.stopping = threading.Event() # set to stop the running selection
         self.listeners = [] # a message queue for each page's event stream
         self.listening = threading.Lock() # guards adding and removing queues
+
+    def generate(self, request: dict) -> None:
+        """
+        Load a randomly generated dataset as described by a page request
+
+        Args:
+            request: The generator, chosen by name, with its settings
+
+        Raises:
+            KeyError: If the generator or a field is not found
+            TypeError: If a setting is missing or not accepted
+            ValueError: If the package rejects a value
+        """
+        entry = self.catalog["generators"][request["generator"]]
+        data = entry["constructor"](**request["settings"])
+        self.dataset = Dataset(data)
 
     def select(self, request: dict) -> dict:
         """
@@ -237,7 +270,7 @@ class Handler(SimpleHTTPRequestHandler):
                 catalog[section] = {
                     name: entry["settings"] for name, entry in entries.items()
                 }
-            self.send_json(200, catalog)
+            self.sendJSON(200, catalog)
         else:
             super().do_GET()
 
@@ -252,26 +285,41 @@ class Handler(SimpleHTTPRequestHandler):
             except ValueError as e:
                 self.send_error(400, explain=str(e))
                 return
-            self.send_json(200, {
-                "features": self.server.dataset.features,
-                "size": self.server.dataset.size,
-                "data": self.server.dataset.data.T.tolist()
-            })
+            self.sendData()
+        elif self.path == "/generate":
+            body = self.rfile.read(int(self.headers["Content-Length"]))
+            try:
+                self.server.generate(json.loads(body))
+            except (KeyError, TypeError, ValueError) as e:
+                self.sendJSON(400, {"error": str(e)})
+                return
+            self.sendData()
         elif self.path == "/select":
             body = self.rfile.read(int(self.headers["Content-Length"]))
             try:
                 reply = self.server.select(json.loads(body))
             except (KeyError, TypeError, ValueError) as e:
-                self.send_json(400, {"error": str(e)})
+                self.sendJSON(400, {"error": str(e)})
                 return
-            self.send_json(200, reply)
+            self.sendJSON(200, reply)
         elif self.path == "/stop":
             self.server.stop()
-            self.send_json(200, {"stopping": True})
+            self.sendJSON(200, {"stopping": True})
         else:
             self.send_error(404)
 
-    def send_json(self, code: int, message) -> None:
+    def sendData(self) -> None:
+        """
+        Sends the loaded dataset's features, size and data, by feature
+        """
+        dataset = self.server.dataset
+        self.sendJSON(200, {
+            "features": dataset.features,
+            "size": dataset.size,
+            "data": dataset.data.T.tolist()
+        })
+
+    def sendJSON(self, code: int, message) -> None:
         """
         Sends a response to the client with a message encoded as JSON
         """

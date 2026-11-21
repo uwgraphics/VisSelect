@@ -32,7 +32,10 @@ class TestBuildCatalog(unittest.TestCase):
     def testObjectiveSettings(self):
         """Test that a fixed metric is left out and a norm has its choices"""
         settings = self.catalog["objectives"]["Preserve mean"]["settings"]
-        norm = {"default": 1, "choices": [1, 2, "inf"]}
+        norm = {
+            "default": 1, "choices": [1, 2, "inf"],
+            "integer": True, "pair": False
+        }
         self.assertEqual(settings, {"p": norm})
 
     def testAlgorithms(self):
@@ -40,10 +43,20 @@ class TestBuildCatalog(unittest.TestCase):
         algorithms = self.catalog["algorithms"]
         self.assertIs(algorithms["GreedySwap"]["constructor"], GreedySwap)
         self.assertIs(algorithms["Random"]["constructor"], Random)
+        whole = {"choices": None, "integer": True, "pair": False}
         self.assertEqual(algorithms["Random"]["settings"], {
-            "samples": {"default": 1, "choices": None},
-            "seed": {"default": None, "choices": None},
+            "samples": {"default": 1} | whole,
+            "seed": {"default": None} | whole,
         })
+
+    def testGenerators(self):
+        """Test that generators are found with whole and decimal pairs"""
+        settings = self.catalog["generators"]["blobs"]["settings"]
+        self.assertTrue(settings["size"]["pair"])
+        self.assertTrue(settings["size"]["integer"])
+        self.assertTrue(settings["interval"]["pair"])
+        self.assertFalse(settings["interval"]["integer"])
+        self.assertFalse(settings["balance"]["pair"])
 
 
 if __name__ == "__main__":
