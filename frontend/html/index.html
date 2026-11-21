@@ -2,61 +2,139 @@
 <html>
     <head>
         <meta charset="utf-8">
+        <link rel="preload" href="/fonts/LibertinusSans-Regular.woff2"
+            as="font" type="font/woff2" crossorigin>
+        <link rel="preload" href="/fonts/LibertinusSerif-Regular.woff2"
+            as="font" type="font/woff2" crossorigin>
         <link rel="stylesheet" href="/css/style.css">
         <script src="/js/d3.js"></script>
         <script type="module" src="/js/main.js"></script>
     </head>
     <body>
-        <h1></h1>
-        <section id="loadDataset">
-            <h2>Load Dataset</h2>
-            <input id="datasetInput" type="file">
-            <button id="randomGeneration" type="button">
-                Random generation
-            </button>
-            <p id="generatorControls" hidden>
-                <select id="generator"></select>
-                <span id="generatorSettings"></span>
-                <button id="backToStart" type="button">Back</button>
-                <button id="generateDataset" type="button">Generate</button>
-            </p>
-        </section>
+        <h1>Flexible Subset Selection</h1>
+        <!-- <h2>Abstract</h2>
+        <p>Visualization designers commonly use subset selection to reduce clutter, reduce computational load, and summarize data. However, without a general strategy for designing and prototyping selection approaches, designers rely on standard methods rather than custom solutions that suit particular visualization goals. We propose a strategy that expresses visualization goals as composable objective functions in a multi-criterion optimization formulation. Designers <em>express</em> selection criteria as objective functions, <em>blend</em> the objectives, and <em>tune</em> parameters to select subsets that meet the needs of particular visualizations. Experiments with general-purpose solvers show how they scale and that they support rapid prototyping of visualization-specific selection approaches. We demonstrate the strategy with examples that reduce clutter in a scatterplot while preserving the data distribution, summarize datasets with cluster representatives, and select subsets that cover the full dataset. Our strategy enables designers to develop custom subset selection approaches without implementing specialized algorithms.</p> -->
+        <div id="mainSection">
+            <section id="loadDataset">
+                <div class="sectionHeading">
+                    <h2>Load Dataset</h2>
+                    <div id="datasetChoice">
+                        <label id="loadFile" class="button">
+                            Import Dataset from File<input id="datasetInput"
+                                type="file" hidden></label>
+                        <button id="randomGeneration" class="button"
+                            type="button">Generate a Synthetic Dataset</button>
+                    </div>
+                    <div id="generatorButtons" hidden>
+                        <label class="button" for="datasetInput">Import
+                            Dataset from File</label>
+                        <button id="generateDataset" class="button"
+                            type="button">Generate</button>
+                    </div>
+                    <div id="fileButtons" hidden>
+                        <button id="fileToGeneration" class="button"
+                            type="button">Generate a Synthetic Dataset</button>
+                    </div>
+                </div>
+                <div id="datasetControls">
+                    <div id="generatorControls" hidden>
+                        <p>
+                            <span class="field">
+                                <label class="fieldName" for="generator">
+                                    Distribution
+                                </label>
+                                <span class="fieldValue">
+                                    <select id="generator"
+                                        class="editable"></select>
+                                </span>
+                            </span>
+                            <span id="generatorSettings"></span>
+                        </p>
+                    </div>
+                    <div id="fileControls" hidden>
+                        <p id="fileInfo"></p>
+                    </div>
+                </div>
+                <p id="datasetInfo"></p>
+            </section>
 
-        <h2>Dataset Information</h2>
-        <p id="datasetInfo"></p>
-        <p id="featureControls" hidden>
-            <label>x: <select id="xFeature"></select></label>
-            <label>y: <select id="yFeature"></select></label>
-        </p>
-        
-        <h2>Define Selection</h2>
-        <div class="panels">
-            <div id="selectionControls" hidden>
-                <div id="objectives"></div>
-                <select id="addObjective">
-                    <option disabled selected>Add objective</option>
-                </select>
+            <section id="datasetInformation" hidden>
+                <div id="plot" hidden>
+                    <div id="chart"></div>
+                    <span id="xAxisField" class="fieldValue axisField">
+                        <select id="xFeature" class="editable"></select>
+                    </span>
+                    <span id="yAxisField" class="fieldValue axisField">
+                        <select id="yFeature" class="editable"></select>
+                    </span>
+                </div>
+            </section>
 
-                <p>
-                    <label>
-                        Size
-                        <input id="subsetSize" type="number" min="1" step="1">
-                    </label>
-                    <label>
-                        Algorithm
-                        <select id="algorithm"></select>
-                    </label>
-                    <span id="algorithmSettings"></span>
-                </p>
+            <section id="defineSelection" hidden>
+                <div class="sectionHeading">
+                    <h2>Define Selection</h2>
+                    <div>
+                        <select id="addObjective" class="button">
+                            <option disabled selected>Add Objective</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="selectionControls">
+                    <p>
+                        <span class="field">
+                            <label class="fieldName" for="subsetSize">
+                                Subset Size
+                            </label>
+                            <span class="fieldValue">
+                                <input id="subsetSize" class="editable"
+                                    type="number" min="1" step="1"><span
+                                    class="times">×</span><span
+                                    id="subsetFeatures"></span>
+                            </span>
+                        </span>
+                        <span class="field">
+                            <label class="fieldName" for="scalarization">
+                                Scalarization
+                            </label>
+                            <span class="fieldValue">
+                                <select id="scalarization"
+                                    class="editable"></select>
+                            </span>
+                        </span>
+                    </p>
+                    <div id="objectives"></div>
+                </div>
+            </section>
 
-                <button id="selectSubset" type="button" disabled>
-                    Select Subset
-                </button>
-                <button id="stopSelection" type="button" hidden>Stop</button>
-                <p id="selectionInfo"></p>
-            </div>
-            <div id="chart"></div>
-            <div id="lossChart"></div>
+            <section id="optimization" hidden>
+                <div class="sectionHeading">
+                    <h2>Optimization</h2>
+                    <div>
+                        <button id="selectSubset" class="button"
+                            type="button" hidden>Select Subset</button>
+                        <button id="stopSelection" class="button"
+                            type="button" hidden>Stop</button>
+                    </div>
+                </div>
+                <div id="optimizationControls">
+                    <p>
+                        <span class="field">
+                            <label class="fieldName" for="algorithm">
+                                Algorithm
+                            </label>
+                            <span class="fieldValue">
+                                <select id="algorithm"
+                                    class="editable"></select>
+                            </span>
+                        </span>
+                        <span id="algorithmSettings"></span>
+                        <span id="selectionInfo"></span>
+                    </p>
+                    <div id="lossInformation">
+                        <div id="lossChart"></div>
+                    </div>
+                </div>
+            </section>
         </div>
     </body>
 </html>

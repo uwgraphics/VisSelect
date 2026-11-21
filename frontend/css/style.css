@@ -1,21 +1,401 @@
-.panels {
+/* --- Variables ------------------------------------------------------------ */
+:root {
+    /* Colors */
+    --green: #8dd3c7;
+    --dark-green: #338477;
+    --orange: #fb8072;
+    --dark-orange: #e0503f;
+    --yellow: #fdb462;
+    --blue: #8dadd3;
+    --dark-blue: #3a6ea5;
+    --grey: #eff0f2;
+    --dark-grey: #676767;
+
+    /* Type Scales */
+    --title-size: 2.2rem;
+    --heading-size: 1.7rem;
+    --remove-size: 1.5rem; /* the × that removes an objective */
+    --control-size: 1.2rem; /* values, buttons and the loss */
+    --tick-size: 1.1rem; /* chart tick values */
+    --name-size: 0.9rem; /* the label names above values */
+
+    /* Spacing Scales */
+    --section-space: 2.4rem; /* between sections, and around the page */
+    --group-space: 1.1rem; /* a heading to its content, field to field */
+    --row-space: 1rem; /* between the rows of a section's controls */
+    --wrap-space: 0.5rem; /* between the lines of a heading that wraps */
+
+    /* Glyph Spacing */
+    --symbol-space: 0.25em; /* beside a symbol: ×, ∼ */
+    --equation-space: 0.4em; /* between the parts of the loss equation */
+    --button-padding: 0.2em 0.6em; /* between a button's text and its border */
+
+    /* Fonts */
+    --page-font: "Libertinus Sans", sans-serif; /* text, headings and names */
+    --control-font: "Libertinus Serif", serif; /* values, buttons, and loss */
+    --math-font: "Libertinus Math", math; /* the loss's typeset terms */
+}
+
+/* --- Fonts ---------------------------------------------------------------- */
+@font-face {
+    font-family: "Libertinus Serif";
+    src: url("/fonts/LibertinusSerif-Regular.woff2") format("woff2");
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+@font-face {
+    font-family: "Libertinus Serif";
+    src: url("/fonts/LibertinusSerif-Italic.woff2") format("woff2");
+    font-weight: 400;
+    font-style: italic;
+    font-display: swap;
+}
+@font-face {
+    font-family: "Libertinus Serif";
+    src: url("/fonts/LibertinusSerif-Bold.woff2") format("woff2");
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+}
+@font-face {
+    font-family: "Libertinus Sans";
+    src: url("/fonts/LibertinusSans-Regular.woff2") format("woff2");
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+@font-face {
+    font-family: "Libertinus Mono";
+    src: url("/fonts/LibertinusMono-Regular.woff2") format("woff2");
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+@font-face {
+    font-family: "Libertinus Math";
+    src: url("/fonts/LibertinusMath-Regular.woff2") format("woff2");
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+
+/* MathML typeset by the browser with the font's own math layout table */
+math {
+    font-family: var(--math-font);
+}
+
+/* --- Page ----------------------------------------------------------------- */
+body {
+    margin: var(--section-space);
+    font-family: var(--page-font);
+}
+
+/* no browser margins, so every gap comes from the spacing scale */
+h1, h2, p {
+    margin: 0;
+}
+h1 {
+    font-weight: 400;
+    font-size: var(--title-size);
+    margin-bottom: var(--section-space);
+}
+h2 {
+    font-weight: 400;
+    font-size: var(--heading-size);
+}
+
+/* messages about failures, such as a dataset or selection that failed */
+.error {
+    color: var(--dark-orange);
+}
+
+/* controls, and labels shown as buttons, in the value font */
+button, input, select, .button {
+    font-family: var(--control-font);
+    font-size: var(--control-size);
+}
+
+/* --- Layout --------------------------------------------------------------- */
+#mainSection {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas:
+        "load plot"
+        "define plot"
+        "optimize plot";
+    grid-template-rows: auto auto 1fr;
+    column-gap: var(--section-space);
+    row-gap: var(--section-space);
+    align-items: start;
+}
+#loadDataset {
+    grid-area: load;
+}
+#datasetInformation {
+    grid-area: plot;
+}
+#defineSelection {
+    grid-area: define;
+}
+#optimization {
+    grid-area: optimize;
+}
+@media (max-width: 900px) {
+    #mainSection {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-areas: "load" "plot" "define" "optimize";
+        grid-template-rows: auto;
+    }
+}
+
+/* a section heading with centred buttons beside it */
+.sectionHeading {
     display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: var(--group-space);
+    row-gap: var(--wrap-space);
+    margin-bottom: var(--group-space);
 }
 
-#algorithmSettings input,
-#generatorSettings input {
-    width: 6em;
+/* the rows inside a section's controls, one step apart */
+#generatorControls > * + *,
+#fileControls > * + *,
+#selectionControls > * + *,
+#optimizationControls > * + * {
+    margin-top: var(--row-space);
 }
 
-#chart circle {
-    opacity: 0.4;
+/* the run's information on the algorithm's row, set apart as its own group */
+#selectionInfo {
+    margin-left: var(--section-space);
 }
 
-#chart circle.selected {
+/* --- Buttons -------------------------------------------------------------- */
+.button {
+    display: inline-block; /* labels take up their padding like buttons do */
+    vertical-align: top; /* the same place in a row whatever sits beside */
+    appearance: none;
+    border: 1px solid currentColor;
+    background: none;
+    padding: var(--button-padding);
+    color: inherit;
+    cursor: pointer;
+}
+.button[hidden] {
+    display: none; /* which display: inline-block would otherwise override */
+}
+.button:not([hidden]) ~ .button {
+    margin-left: var(--row-space);
+}
+.button:hover {
+    color: var(--dark-grey);
+}
+
+/* --- Fields --------------------------------------------------------------- */
+.field {
+    display: inline-flex;
+    flex-direction: column;
+    margin-right: var(--group-space);
+    vertical-align: bottom;
+}
+.field[hidden], .fieldValue [hidden] {
+    display: none;
+}
+.field:last-child {
+    margin-right: 0;
+}
+
+.fieldName {
+    font-size: var(--name-size);
+    color: var(--dark-grey);
+}
+
+.fieldValue {
+    font-family: var(--control-font);
+    font-size: var(--control-size);
+}
+.fieldValue input::placeholder {
+    color: inherit;
     opacity: 1;
 }
+.fieldValue input[type="number"] {
+    appearance: textfield;
+}
+.fieldValue input::-webkit-inner-spin-button,
+.fieldValue input::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+.fieldValue input, .fieldValue select, .relation, .remove {
+    appearance: none;
+    border: none;
+    background: none;
+    padding: 0;
+}
 
+/* the space around a size's × */
+.times {
+    margin: 0 var(--symbol-space);
+}
+
+/* size each input to an invisible copy of its text in the same grid cell */
+.fit {
+    display: inline-grid;
+}
+.fit::after {
+    content: attr(data-value);
+    visibility: hidden;
+    white-space: pre;
+    grid-area: 1 / 1;
+}
+.fit > input, .fit > select {
+    grid-area: 1 / 1;
+    font: inherit;
+    width: 0;
+    min-width: 100%;
+}
+
+/* --- Editable Fields ------------------------------------------------------ */
+.editable {
+    color: var(--dark-blue);
+    cursor: pointer;
+}
+.editable:hover, .editable.pointed {
+    color: var(--blue);
+}
+.editable:disabled, .running .editable {
+    color: CanvasText;
+    cursor: default;
+}
+
+/* the = / ∼ switch between a fixed value and a random range */
+.relation {
+    margin-right: var(--symbol-space);
+    font: inherit;
+}
+
+/* --- Objectives ----------------------------------------------------------- */
+#objectives {
+    display: grid;
+    grid-template-columns: repeat(5, max-content);
+    justify-content: center; /* the loss centred in the column */
+    column-gap: var(--equation-space);
+    row-gap: var(--group-space); /* room for the names above each term */
+    align-items: baseline;
+    font-family: var(--control-font);
+    font-size: var(--control-size);
+}
+#objectives .term {
+    display: contents;
+}
+#objectives .lead {
+    grid-column: 1;
+    text-align: right;
+}
+#objectives .weight {
+    grid-column: 2;
+    justify-self: end; /* weights right-aligned, next to their terms */
+    position: relative; /* anchors its name, the λ above it */
+}
+#objectives .formula {
+    grid-column: 3;
+    white-space: nowrap; /* a term stays on one line, never broken */
+}
+#objectives .objective {
+    grid-column: 4;
+    margin-left: var(--group-space);
+    position: relative; /* anchors its name, the Objective above it */
+}
+/* the names of the editable values, grey above them like the other fields */
+#objectives .tokenLabel {
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    white-space: nowrap;
+    line-height: 1;
+}
+
+/* typeset part of the loss with invisible dropdown */
+.math {
+    position: relative;
+    display: inline-block; /* has a size to watch for when its font loads */
+}
+.math .chooser {
+    position: absolute;
+    opacity: 0;
+    cursor: pointer;
+}
+
+.math .chooser.open {
+    opacity: 1; /* a number shown while it is typed */
+    background: Canvas; /* covering the value it edits */
+    text-align: center;
+    min-width: 3ch; /* room to type, over the term, until it is entered */
+}
+.running .chooser {
+    display: none; /* nothing to choose while a selection runs */
+}
+
+/* removing a term, an orange × that is not part of the loss */
+.remove {
+    grid-column: 5;
+    margin-left: var(--row-space);
+    font-size: var(--remove-size);
+    line-height: 1;
+    color: var(--orange);
+    cursor: pointer;
+}
+.remove:hover {
+    color: var(--dark-orange);
+}
+.remove:disabled {
+    visibility: hidden; /* no removing while a selection runs */
+}
+
+/* --- Plots ---------------------------------------------------------------- */
+#plot {
+    position: relative;
+    max-width: 100vh;
+}
+#plot .axisField {
+    position: absolute;
+    white-space: nowrap;
+}
+#xAxisField {
+    bottom: 4px;
+    transform: translateX(-50%); /* centred on its left position */
+}
+#yAxisField {
+    left: 16px;
+    transform: translate(-50%, -50%) rotate(-90deg); /* turned to read up */
+}
+
+/* tick values in the page font */
+#chart text, #lossChart text {
+    font-family: var(--page-font);
+    font-size: var(--tick-size);
+}
+#lossChart .axisLabel {
+    font-family: var(--control-font);
+    font-size: var(--control-size);
+    fill: currentColor;
+}
+
+#chart svg, #lossChart svg {
+    display: block;
+}
+#chart circle {
+    opacity: 0.4;
+    fill: var(--green);
+}
+#chart circle.selected {
+    opacity: 1;
+    fill: var(--dark-green);
+}
 #lossChart .best {
     fill: none;
-    stroke: currentColor;
+    stroke: var(--orange);
+    stroke-width: 2;
 }

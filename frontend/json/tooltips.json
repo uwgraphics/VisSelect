@@ -1,0 +1,14 @@
+{
+    "generator": "The distribution the synthetic dataset is drawn from",
+    "addObjective": "Add an objective to the loss",
+    "subsetSize": "The number of items to select",
+    "scalarization": "How the objectives are combined into one loss",
+    "algorithm": "The search algorithm that selects the subset",
+    "xFeature": "The feature shown on the x axis",
+    "yFeature": "The feature shown on the y axis",
+    "fileName": "Choose another file",
+    "weight": "The λ weight value of this objective",
+    "remove": "Remove this objective",
+    "relationFixed": "The value is fixed",
+    "relationRandom": "The value is drawn uniformly at random from the range"
+}
