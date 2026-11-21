@@ -33,8 +33,8 @@ def binary(
 
     Args:
         size: The number of items and features to generate
-        probabilityInterval: The range of the probabilities of success,
-            inclusive
+        probabilityInterval: The range each feature's probability of
+            success is drawn from, inclusive
         seed: The seed for random generation to reproduce the data
     """
     rng = np.random.default_rng(seed)
@@ -53,7 +53,8 @@ def categories(
 
     Args:
         size: The number of items and features to generate
-        categoriesInterval: The range of categories of each feature, inclusive
+        categoriesInterval: The range each feature's number of categories
+            is drawn from, inclusive
         balance: How balanced the categories' shares of items are, 0 to 1
         seed: The seed for random generation to reproduce the data
 
@@ -80,7 +81,7 @@ def categories(
 
 def normal(
     size: tuple[int, int] = (1000, 2),
-    interval: tuple[float, float] = (1.0, 5.0),
+    meanInterval: tuple[float, float] = (1.0, 5.0),
     sigmaInterval: tuple[float, float] = (0.1, 3.0),
     skewInterval: tuple[float, float] = (0.0, 0.0),
     modesInterval: tuple[int, int] = (1, 1),
@@ -93,10 +94,13 @@ def normal(
 
     Args:
         size: The number of items and features to generate
-        interval: The range of the locations of the modes, inclusive
-        sigmaInterval: The range of the scales of the modes, inclusive
-        skewInterval: The range of the skewness of the modes, inclusive
-        modesInterval: The range of modes of each feature, inclusive
+        meanInterval: The range each mode's mean is drawn from, inclusive,
+            its location when it is skewed
+        sigmaInterval: The range each mode's scale is drawn from, inclusive
+        skewInterval: The range each mode's skewness is drawn from,
+            inclusive
+        modesInterval: The range each feature's number of modes is drawn
+            from, inclusive
         balance: How balanced the modes' shares of items are, 0 to 1
         seed: The seed for random generation to reproduce the data
     """
@@ -107,7 +111,7 @@ def normal(
 
     data = np.zeros(size)
     for i in range(size[1]):
-        mu = _uniform(rng, interval, modes[i])
+        mu = _uniform(rng, meanInterval, modes[i])
         sigma = _uniform(rng, sigmaInterval, modes[i])
         a = _uniform(rng, skewInterval, modes[i])
 
@@ -123,7 +127,7 @@ def normal(
 
 def blobs(
     size: tuple[int, int] = (1000, 2),
-    interval: tuple[float, float] = (1.0, 5.0),
+    centerInterval: tuple[float, float] = (1.0, 5.0),
     clustersInterval: tuple[int, int] = (6, 6),
     sigmaInterval: tuple[float, float] = (0.1, 3.0),
     balance: float = 1.0,
@@ -134,9 +138,11 @@ def blobs(
 
     Args:
         size: The number of items and features to generate
-        interval: The range of the cluster centers in each feature, inclusive
-        clustersInterval: The range of the number of clusters, inclusive
-        sigmaInterval: The range of standard deviations of clusters, inclusive
+        centerInterval: The range each cluster's center is drawn from, inclusive
+        clustersInterval: The range the number of clusters is drawn from,
+            inclusive
+        sigmaInterval: The range each cluster's standard deviation is
+            drawn from, inclusive
         balance: How balanced the clusters' shares of items are, 0 to 1
         seed: The seed for random generation to reproduce the data
     """
@@ -144,7 +150,7 @@ def blobs(
     clusters = rng.integers(
         clustersInterval[0], clustersInterval[1], endpoint=True
     )
-    centers = _uniform(rng, interval, (clusters, size[1]))
+    centers = _uniform(rng, centerInterval, (clusters, size[1]))
     sigma = _uniform(rng, sigmaInterval, clusters)
 
     labels = _assignment(rng, size[0], clusters, balance)

@@ -74,5 +74,75 @@ class TestDistinctness(ObjectiveTestCase):
         self.assertEqual(objective.Distinctness()(subset), -(1 + 1 + 2))
 
 
+
+class TestEnergyDistance(unittest.TestCase):
+    """
+    Test the energy distance objective class
+    """
+
+    def testValue(self):
+        """Test the value on a small case computed by hand"""
+        dataset = Dataset(np.array([[0.0], [1.0]]))
+        subset = Subset(dataset, np.array([True, False]))
+        # twice the mean distance to the dataset less the mean within
+        self.assertAlmostEqual(objective.EnergyDistance()(subset), 2 * 0.5 - 0.0)
+
+    def testPrefersTheDistribution(self):
+        """Test that a subset spanning both clusters scores lower than one
+        drawn from a single cluster"""
+        rng = np.random.default_rng(0)
+        data = rng.normal(0.0, 0.5, size=(100, 2))
+        data[50:] += 10.0 # two clusters, half the items in each
+        dataset = Dataset(data)
+        indices = np.arange(100)
+        both = (indices % 25) == 0 # two items in each cluster
+        one = indices < 4 # four items in the first cluster
+        energy = objective.EnergyDistance()
+        self.assertLess(energy(Subset(dataset, both)),
+                        energy(Subset(dataset, one)))
+
+
+class TestOutliers(unittest.TestCase):
+    """
+    Test the outliers objective class
+    """
+
+    def setUp(self):
+        """Create a tight cluster of items with one far outlier"""
+        rng = np.random.default_rng(0)
+        data = rng.normal(0.0, 0.5, size=(50, 2))
+        data[0] = [10.0, 10.0]
+        self.dataset = Dataset(data)
+        self.outliers = objective.Outliers(neighbors=10)
+
+    def testPrefersOutliers(self):
+        """Test that a subset holding the outlier has the lower loss"""
+        withOutlier = np.arange(50) < 5
+        without = (np.arange(50) >= 1) & (np.arange(50) < 6)
+        self.assertLess(self.outliers(Subset(self.dataset, withOutlier)),
+                        self.outliers(Subset(self.dataset, without)))
+
+    def testFactors(self):
+        """Test the factors are near 1 for inliers and large for the outlier"""
+        factors = self.outliers._factors(self.dataset.data)
+        self.assertGreater(factors[0], 2.0)
+        self.assertLess(np.median(factors[1:]), 1.2)
+        self.assertGreater(np.median(factors[1:]), 0.8)
+
+    def testCached(self):
+        """Test that the factors are computed once and cached on the dataset"""
+        subset = Subset(self.dataset, np.arange(50) < 5)
+        self.outliers(subset)
+        self.assertIn(self.outliers._factors, self.dataset._characteristics)
+
+    def testRejectNeighbors(self):
+        """Test that too few or too many neighbors raise a ValueError"""
+        with self.assertRaises(ValueError):
+            objective.Outliers(neighbors=0)
+        with self.assertRaises(ValueError):
+            objective.Outliers(neighbors=50)(
+                Subset(self.dataset, np.arange(50) < 5))
+
+
 if __name__ == "__main__":
     unittest.main()

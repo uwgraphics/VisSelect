@@ -5,6 +5,7 @@ import inspect
 import io
 import json
 import queue
+import re
 import threading
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -15,20 +16,49 @@ from typing import Iterator, get_args, get_origin
 import numpy as np
 
 # local files
-from . import algorithm, generate, metric, objective
+from . import algorithm, generate, metric, objective, scalarization
 from .dataset import Dataset
 from .loss import Loss
 from .problem import Problem
 from .results import Results
-from .scalarization import WeightedSum
 from .solver import Solver
 
 # --- Package Options ----------------------------------------------------------
 
+def describeArguments(constructor) -> dict[str, str]:
+    """
+    Read the description of each argument of a constructor from the Args
+    section of its docstring, with wrapped lines joined
+
+    Args:
+        constructor: The class or function whose docstring to read
+    """
+    function = (
+        constructor.__init__ if inspect.isclass(constructor) else constructor
+    )
+    text = inspect.getdoc(function) or ""
+    descriptions = {}
+    name = None
+    inArguments = False
+    for line in text.splitlines():
+        if line.strip() == "Args:":
+            inArguments = True
+        elif inArguments:
+            if line and not line.startswith(" "): # the next section
+                break
+            argument = re.match(r"    (\w+): (.+)", line)
+            if argument:
+                name = argument.group(1)
+                descriptions[name] = argument.group(2).strip()
+            elif name and line.startswith("        ") and line.strip():
+                descriptions[name] += " " + line.strip() # a wrapped line
+    return descriptions
+
+
 def buildCatalog() -> dict[str, dict[str, dict]]:
     """
-    Build the catalog of all objectives, algorithms and dataset generators and
-    their available settings
+    Build the catalog of all objectives, algorithms, dataset generators,
+    metrics and scalarizations and their available settings
     """
     # the public functions or classes defined in each module of the package
     searches = [
@@ -36,6 +66,7 @@ def buildCatalog() -> dict[str, dict[str, dict]]:
         (objective, inspect.isclass),
         (algorithm, inspect.isclass),
         (generate, inspect.isfunction),
+        (scalarization, inspect.isclass),
     ]
 
     public = {}
@@ -47,45 +78,48 @@ def buildCatalog() -> dict[str, dict[str, dict]]:
             if defined and not private:
                 public[module][name] = member
 
-    # expand objectives that take a metric into one objective per metric
-    objectives = {}
-    for name, constructor in public[objective].items():
-        parameters = inspect.signature(constructor).parameters
-        if "metric" in parameters:
-            for metricName, function in public[metric].items():
-                bound = {"metric": function}
-                # a scalar metric's difference is the same under every norm
-                returns = inspect.signature(function).return_annotation
-                if returns is float and "p" in parameters:
-                    bound["p"] = 1
-                objectives[f"{name} {metricName}"] = partial(
-                    constructor, **bound
-                )
-        else:
-            objectives[name] = constructor
+    # the metrics in the order they are defined, and those giving a scalar,
+    # whose difference is an absolute value the same under every norm
+    metrics = dict(sorted(
+        public[metric].items(), key=lambda m: m[1].__code__.co_firstlineno
+    ))
+    scalar = [
+        name for name, function in metrics.items()
+        if inspect.signature(function).return_annotation is float
+    ]
 
     # describe each constructor's settings for the page from its signature
     sections = {
-        "objectives": objectives,
+        "objectives": public[objective],
         "algorithms": public[algorithm],
         "generators": public[generate],
+        "metrics": metrics,
+        "scalarizations": public[scalarization],
     }
     catalog = {}
     for section, constructors in sections.items():
         catalog[section] = {}
         for entry, constructor in constructors.items():
             parameters = inspect.signature(constructor).parameters.items()
-            fixed = getattr(constructor, "keywords", {}) # set by partial
+            descriptions = describeArguments(constructor)
+            if section == "metrics": # metrics are chosen, not set up
+                parameters = []
             settings = {}
             for name, parameter in parameters:
-                if name in fixed: # such as the metric of an expanded objective
+                # a scalarization's weights come from the objectives' weights
+                if section == "scalarizations" and name == "weights":
                     continue
-                
+
                 # the default value, or None if the setting is required
                 required = parameter.default is inspect.Parameter.empty
                 default = None if required else parameter.default
                 norm = name == "p" # a norm order, with infinity sent as "inf"
                 choices = [1, 2, "inf"] if norm else None
+
+                # a metric is chosen by name, starting from the first defined
+                if name == "metric":
+                    choices = list(metrics)
+                    default = choices[0]
 
                 # whole or decimal numbers, from the annotation, and whether
                 # the setting takes a pair such as an interval
@@ -97,8 +131,11 @@ def buildCatalog() -> dict[str, dict[str, dict]]:
                     "default": default,
                     "choices": choices,
                     "integer": integer,
-                    "pair": pair
+                    "pair": pair,
+                    "description": descriptions.get(name)
                 }
+                if name == "metric":
+                    settings[name]["scalar"] = scalar
             catalog[section][entry] = {
                 "constructor": constructor,
                 "settings": settings
@@ -144,8 +181,9 @@ class Server(ThreadingHTTPServer):
         request, in a worker thread that publishes its progress to listeners
 
         Args:
-            request: The objectives with their weights, the subset size, and
-                the algorithm with its settings, chosen by name
+            request: The objectives with their weights, the scalarization
+                that combines them, the subset size, and the algorithm with
+                its settings, chosen by name
 
         Raises:
             KeyError: If an objective, algorithm or field is not found
@@ -161,10 +199,14 @@ class Server(ThreadingHTTPServer):
         for o in chosen:
             values = o["settings"].items()
             values = {k: np.inf if v == "inf" else v for k, v in values}
+            if "metric" in values: # chosen by name
+                metrics = self.catalog["metrics"]
+                values["metric"] = metrics[values["metric"]]["constructor"]
             entry = self.catalog["objectives"][o["name"]]
             objectives.append(entry["constructor"](**values))
         weights = [o["weight"] for o in chosen]
-        loss = Loss(objectives, WeightedSum(weights))
+        entry = self.catalog["scalarizations"][request["scalarization"]]
+        loss = Loss(objectives, entry["constructor"](weights))
         problem = Problem(self.dataset, loss, request["size"])
 
         entry = self.catalog["algorithms"][request["algorithm"]]

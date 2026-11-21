@@ -5,13 +5,14 @@ from typing import Callable
 
 # third party
 import numpy as np
+from scipy.spatial import KDTree
 from scipy.spatial.distance import cdist
 
 # local files
 from .subset import Subset
 
 
-# --- Preserve Metric Class ----------------------------------------------------
+# --- Preserve Metric Objective ------------------------------------------------
 
 class Preserve:
     """
@@ -27,8 +28,8 @@ class Preserve:
         Initialize a metric preserving objective
 
         Args:
-            metric: The metric function to apply to the data
-            p: Specify the ord of the norm from linalg.norm NumPy options
+            metric: The metric applied to the data to preserve in the subset
+            p: The order of the norm of the difference between metrics: 1, 2, ∞
 
         Raises:
             TypeError: If metric is not callable
@@ -44,7 +45,7 @@ class Preserve:
         subset: Subset
     ) -> float:
         """
-        Evaluate the distance of the subset from the dataset
+        Compute the distance of the subset from the dataset
 
         Args:
             subset: The subset to evaluate the distance from the target
@@ -60,7 +61,7 @@ class Preserve:
         return np.linalg.norm(datasetMetric - subsetMetric, ord=self._p)
 
 
-# --- Distinctness Class -------------------------------------------------------
+# --- Distinctness Objective ---------------------------------------------------
 
 class Distinctness:
     """
@@ -72,8 +73,7 @@ class Distinctness:
         subset: Subset
     ) -> float:
         """
-        Evaluate the negative sum of each item's distance to its nearest
-        neighbor in the subset, computed from the subset's own distances
+        Compute the negative sum of each item's distance to its nearest neighbor
 
         Args:
             subset: The subset to evaluate the distinctness of
@@ -83,3 +83,91 @@ class Distinctness:
         np.fill_diagonal(distances, np.inf) # an item is not its own neighbor
 
         return -np.sum(np.min(distances, axis=1))
+
+
+# --- Energy Distance Objective ------------------------------------------------
+
+class EnergyDistance:
+    """
+    Minimize the energy distance between the distributions of the subset and
+    the dataset
+    """
+
+    def __call__(
+        self,
+        subset: Subset
+    ) -> float:
+        """
+        Evaluate the energy distance between the distributions of the subset
+        and the dataset (Székely and Rizzo, 2013), up to the dataset's own
+        mean pairwise distance, a constant no selection changes
+
+        Args:
+            subset: The subset to evaluate the distribution distance of
+        """
+        data = subset.data
+        between = cdist(data, subset.dataset.data).mean()
+        within = cdist(data, data).mean()
+        return 2.0 * between - within
+
+
+# --- Outliers Objective -------------------------------------------------------
+
+class Outliers:
+    """
+    Maximize how outlying the items of the subset are in the dataset
+    """
+
+    def __init__(self, neighbors: int = 20) -> None:
+        """
+        Initialize an outliers objective
+
+        Args:
+            neighbors: The number of nearest neighbors each item's local
+                outlier factor considers
+
+        Raises:
+            ValueError: If neighbors is less than 1
+        """
+        if neighbors < 1:
+            raise ValueError("Neighbors is less than 1")
+        self._neighbors = neighbors
+
+    def __call__(
+        self,
+        subset: Subset
+    ) -> float:
+        """
+        Compute the negative sum of the local outlier factors of the subset
+
+        Args:
+            subset: The subset to evaluate the outlierness of
+
+        Raises:
+            ValueError: If the dataset does not have more items than neighbors
+        """
+        factors = subset.dataset.evaluate(self._factors)
+        return -np.sum(np.compress(subset.indicator, factors))
+
+    def _factors(self, data: np.ndarray) -> np.ndarray:
+        """
+        Computes the local outlier factor of every item (Breunig et al., 2000)
+
+        Args:
+            data: The data array of the dataset
+
+        Raises:
+            ValueError: If the number of neighbors is ≥ the number of items
+        """
+        k = self._neighbors
+        if data.shape[0] <= k:
+            raise ValueError("Neighbors is ≥ the number of items")
+
+        distances, neighbors = KDTree(data).query(data, k=k + 1)
+        distances = distances[:, 1:] # an item is not its own neighbor
+        neighbors = neighbors[:, 1:]
+
+        # how far an item reaches for each of its neighbors
+        reachability = np.maximum(distances[:, -1][neighbors], distances)
+        density = k / np.sum(reachability, axis=1) # local reachability
+        return np.sum(density[neighbors], axis=1) / k / density
