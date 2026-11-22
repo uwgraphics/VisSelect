@@ -12,6 +12,31 @@ from visselect import metric
 
 # --- Test Classes -------------------------------------------------------------
 
+class TestRange(unittest.TestCase):
+    """
+    Test the per feature range metric
+    """
+
+    def testRanges(self):
+        """Test that each feature's range is its maximum minus its minimum"""
+        data = np.array([[0.0, 5.0], [2.0, 1.0], [4.0, 3.0]])
+        np.testing.assert_array_equal(metric.range(data), [4.0, 4.0])
+
+class TestExtremes(unittest.TestCase):
+    """
+    Test the per feature maximum and minimum metrics
+    """
+
+    def testMax(self):
+        """Test that each feature's maximum is found"""
+        data = np.array([[0.0, 5.0], [2.0, 1.0], [4.0, 3.0]])
+        np.testing.assert_array_equal(metric.max(data), [4.0, 5.0])
+
+    def testMin(self):
+        """Test that each feature's minimum is found"""
+        data = np.array([[0.0, 5.0], [2.0, 1.0], [4.0, 3.0]])
+        np.testing.assert_array_equal(metric.min(data), [0.0, 1.0])
+
 class TestHull(unittest.TestCase):
     """
     Test the convex hull metric
