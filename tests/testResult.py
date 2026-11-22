@@ -58,9 +58,19 @@ class TestResults(unittest.TestCase):
         """Test that completing a solve sets its status and final time"""
         results = Results(self.problem)
         results._record(self.subset, 2.0, 0.1)
+        self.assertIsNone(results.status) # still running
         results._complete("finished", 0.5)
-        self.assertEqual(results._status, "finished")
-        self.assertEqual(results._time, 0.5)
+        self.assertEqual(results.status, "finished")
+        self.assertEqual(results.time, 0.5)
+
+    def testProperties(self):
+        """Test the read-only views of the best loss, the time and the total"""
+        results = Results(self.problem, total=9)
+        self.assertEqual(results.total, 9)
+        results._record(self.subset, 2.0, 0.1)
+        results._record(self.subset, 3.0, 0.2)
+        self.assertEqual(results.loss, 2.0) # the best, not the latest
+        self.assertEqual(results.time, 0.2) # the latest, not the best
 
 
 if __name__ == "__main__":

@@ -53,6 +53,12 @@ class TestRandomSelection(AlgorithmTestCase):
         self.assertEqual(first, repeat)
         self.assertNotEqual(first, other)
 
+    def testDeclaredEvaluations(self):
+        """Test that the declared evaluations match a run's actual count"""
+        algorithm = Random(samples=7, seed=0)
+        count = sum(1 for _ in algorithm(self.problem))
+        self.assertEqual(algorithm.evaluations, count)
+
     def testFreeze(self):
         """Test that the live subset changes and a frozen copy does not"""
         randomSelectionRun = Random(samples=2, seed=0)(self.problem)
@@ -74,6 +80,12 @@ class TestGreedySwap(AlgorithmTestCase):
             self.assertEqual(loss, float(self.problem.loss(subset)))
             count += 1
         self.assertEqual(count, 1 + (20 - 5) * 5)
+
+    def testDeclaredEvaluations(self):
+        """Test that the declared evaluations match a run's actual count"""
+        algorithm = GreedySwap(seed=0)
+        count = sum(1 for _ in algorithm(self.problem))
+        self.assertEqual(algorithm.evaluations(self.problem), count)
 
     def testImproves(self):
         """Test that the result is no worse than the random starting subset"""

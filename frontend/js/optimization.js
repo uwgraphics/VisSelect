@@ -119,7 +119,15 @@ function follow(event) {
     }
     showSubset(new Set(message.subset));
     showLoss(improvements, message.evaluation);
-    const status = {improved: "Running", stopped: "Stopped", finished: "Done"};
+    // the share of the declared total done so far stands in for Running,
+    // when the algorithm declared one
+    const {total, evaluation} = message;
+    const progress = total ? `${Math.round(100 * evaluation / total)}%` : null;
+    const status = {
+        improved: progress ?? "Running",
+        stopped: progress ? `Stopped at ${progress}` : "Stopped",
+        finished: "Done",
+    };
     selectionInfo.replaceChildren(
         infoField("Loss", message.loss.toFixed(3)),
         infoField("Evaluations", message.evaluation),

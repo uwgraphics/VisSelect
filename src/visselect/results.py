@@ -19,7 +19,8 @@ class Results:
         self, 
         problem: Problem, 
         seed: int | None = None, 
-        log: bool = True
+        log: bool = True,
+        total: int | None = None
     ) -> None:
         """
         Initialize a results record for a solve of a problem
@@ -28,10 +29,12 @@ class Results:
             problem: The problem being solved
             seed: The seed used in the solve, for reproducibility
             log: Whether to log the loss and time of every evaluation
+            total: The total number of evaluations for the algorithm and problem
         """
         self._problem = problem
         self._log = log
         self._seed = seed
+        self._total = total
 
          # Initialize the losses for this solve
         self._losses = []
@@ -103,3 +106,31 @@ class Results:
         The loss of every evaluation logged in sequential order
         """
         return list(self._losses)
+
+    @property
+    def loss(self) -> float:
+        """
+        The best loss evaluated for the best subset found for the problem
+        """
+        return self._loss
+
+    @property
+    def time(self) -> float:
+        """
+        The amount of time elapsed searching for the best subset so far
+        """
+        return self._time
+
+    @property
+    def status(self) -> str | None:
+        """
+        The status at completion: finished, stopped, or None while running
+        """
+        return self._status
+
+    @property
+    def total(self) -> int | None:
+        """
+        The total number of evaluations for the algorithm and problem
+        """
+        return self._total

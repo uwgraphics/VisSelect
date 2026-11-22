@@ -64,6 +64,13 @@ class Random:
             yield subset, float(problem.loss(subset))
 
     @property
+    def evaluations(self) -> int:
+        """
+        The number of evaluations a run takes: one per random sample
+        """
+        return self._samples
+
+    @property
     def seed(self) -> int:
         """
         The random seed for reproducibility
@@ -126,6 +133,17 @@ class GreedySwap:
                 indicator[item] = True
                 members[bestPosition] = item
                 loss = bestLoss
+
+    def evaluations(self, problem: Problem) -> int:
+        """
+        The number of evaluations a run takes: a random starting subset plus 
+        one per swap of each item outside the subset
+
+        Args:
+            problem: The problem the run would solve
+        """
+        size = problem.size
+        return 1 + size * (len(problem.dataset) - size)
 
     @property
     def seed(self) -> int | None:

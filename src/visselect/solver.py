@@ -58,8 +58,11 @@ class Solver:
             problem: The subset selection problem definition to solve
             log: Whether to log the loss and time of every evaluation
         """
+        evaluations = getattr(self._algorithm, "evaluations", None)
+        total = evaluations(problem) if callable(evaluations) else evaluations
         seed = getattr(self._algorithm, "seed", None)
-        results = Results(problem, log=log, seed=seed)
+        results = Results(problem, log=log, seed=seed, total=total)
+
         run = self._algorithm(problem)
         timer = Timer()
 

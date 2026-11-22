@@ -9,6 +9,7 @@
     --blue: #8dadd3;
     --dark-blue: #3a6ea5;
     --grey: #eff0f2;
+    --light-grey: #f3f7f7; /* the title band, from the personal site */
     --dark-grey: #676767;
 
     /* Type Scales */
@@ -95,10 +96,17 @@ body {
 h1, h2, p {
     margin: 0;
 }
+/* the title on a light band across the whole page, bled through the body's
+   margin so the title keeps its place and alignment */
+header {
+    margin: calc(-1 * var(--section-space));
+    margin-bottom: var(--section-space);
+    padding: var(--section-space);
+    background: var(--light-grey);
+}
 h1 {
     font-weight: 400;
     font-size: var(--title-size);
-    margin-bottom: var(--section-space);
 }
 h2 {
     font-weight: 400;

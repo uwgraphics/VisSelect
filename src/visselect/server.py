@@ -238,8 +238,9 @@ class Server(ThreadingHTTPServer):
                     improved = {
                         "status": "improved",
                         "evaluation": evaluation,
-                        "time": results._time,
-                        "loss": results._loss,
+                        "total": results.total,
+                        "time": results.time,
+                        "loss": results.loss,
                         "subset": np.flatnonzero(best.indicator).tolist()
                     }
                     self.publish(improved)
@@ -256,7 +257,7 @@ class Server(ThreadingHTTPServer):
         ended = {
             "status": status,
             "evaluation": evaluation,
-            "time": results._time
+            "time": results.time
         }
         self.publish(improved | ended)
 
