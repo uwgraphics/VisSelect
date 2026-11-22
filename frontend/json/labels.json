@@ -21,5 +21,14 @@
     "metric": "Metric",
     "WeightedSum": "Weighted Sum",
     "neighbors": "k",
-    "EnergyDistance": "Energy Distance"
+    "EnergyDistance": "Energy Distance",
+    "scale": "Scale",
+    "discretize": "Discretize",
+    "encode": "Encode",
+    "bins": "Bins",
+    "strategy": "Strategy",
+    "order": "Order",
+    "quantile": "Quantile",
+    "kmeans": "K-Means",
+    "representation": "On"
 }

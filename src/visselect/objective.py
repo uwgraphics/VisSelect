@@ -22,7 +22,8 @@ class Preserve:
     def __init__(
         self,
         metric: Callable,
-        p: int | str = 1
+        p: int | str = 1,
+        representation: str = "data"
     ) -> None:
         """
         Initialize a metric preserving objective
@@ -30,6 +31,8 @@ class Preserve:
         Args:
             metric: The metric applied to the data to preserve in the subset
             p: The order of the norm of the difference between metrics: 1, 2, ∞
+            representation: The name of the representation evaluated, or
+                "data" for the data itself
 
         Raises:
             TypeError: If metric is not callable
@@ -39,6 +42,7 @@ class Preserve:
 
         self._metric = metric
         self._p = p
+        self._representation = representation
 
     def __call__(
         self,
@@ -50,8 +54,9 @@ class Preserve:
         Args:
             subset: The subset to evaluate the distance from the target
         """
-        datasetMetric = subset.dataset.evaluate(self._metric)
-        subsetMetric = self._metric(subset.data)
+        datasetMetric = subset.dataset.evaluate(self._metric,
+                                                self._representation)
+        subsetMetric = self._metric(subset[self._representation])
 
         # If the metric results are scalars, use the absolute difference
         if np.ndim(datasetMetric) == 0:
@@ -68,6 +73,16 @@ class Distinctness:
     Maximize the distance from each item in the subset to its nearest neighbor
     """
 
+    def __init__(self, representation: str = "data") -> None:
+        """
+        Initialize a distinctness objective
+
+        Args:
+            representation: The name of the representation evaluated, or
+                "data" for the data itself
+        """
+        self._representation = representation
+
     def __call__(
         self,
         subset: Subset
@@ -78,7 +93,7 @@ class Distinctness:
         Args:
             subset: The subset to evaluate the distinctness of
         """
-        data = subset.data
+        data = subset[self._representation]
         distances = cdist(data, data)
         np.fill_diagonal(distances, np.inf) # an item is not its own neighbor
 
@@ -93,6 +108,16 @@ class EnergyDistance:
     the dataset
     """
 
+    def __init__(self, representation: str = "data") -> None:
+        """
+        Initialize an energy distance objective
+
+        Args:
+            representation: The name of the representation evaluated, or
+                "data" for the data itself
+        """
+        self._representation = representation
+
     def __call__(
         self,
         subset: Subset
@@ -105,8 +130,8 @@ class EnergyDistance:
         Args:
             subset: The subset to evaluate the distribution distance of
         """
-        data = subset.data
-        between = cdist(data, subset.dataset.data).mean()
+        data = subset[self._representation]
+        between = cdist(data, subset.dataset[self._representation]).mean()
         within = cdist(data, data).mean()
         return 2.0 * between - within
 
@@ -118,13 +143,19 @@ class Outliers:
     Maximize how outlying the items of the subset are in the dataset
     """
 
-    def __init__(self, neighbors: int = 20) -> None:
+    def __init__(
+        self,
+        neighbors: int = 20,
+        representation: str = "data"
+    ) -> None:
         """
         Initialize an outliers objective
 
         Args:
             neighbors: The number of nearest neighbors each item's local
                 outlier factor considers
+            representation: The name of the representation evaluated, or
+                "data" for the data itself
 
         Raises:
             ValueError: If neighbors is less than 1
@@ -132,6 +163,7 @@ class Outliers:
         if neighbors < 1:
             raise ValueError("Neighbors is less than 1")
         self._neighbors = neighbors
+        self._representation = representation
 
     def __call__(
         self,
@@ -146,7 +178,8 @@ class Outliers:
         Raises:
             ValueError: If the dataset does not have more items than neighbors
         """
-        factors = subset.dataset.evaluate(self._factors)
+        factors = subset.dataset.evaluate(self._factors,
+                                          self._representation)
         return -np.sum(np.compress(subset.indicator, factors))
 
     def _factors(self, data: np.ndarray) -> np.ndarray:

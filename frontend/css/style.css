@@ -21,7 +21,7 @@
     --name-size: 0.9rem; /* the label names above values */
 
     /* Spacing Scales */
-    --section-space: 2.4rem; /* between sections, and around the page */
+    --section-space: 2.1rem; /* between sections, and around the page */
     --group-space: 1.1rem; /* a heading to its content, field to field */
     --row-space: 1rem; /* between the rows of a section's controls */
     --wrap-space: 0.5rem; /* between the lines of a heading that wraps */
@@ -130,9 +130,10 @@ button, input, select, .button {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     grid-template-areas:
         "load plot"
+        "transform plot"
         "define plot"
-        "optimize plot";
-    grid-template-rows: auto auto 1fr;
+        "define optimize";
+    grid-template-rows: auto auto 1fr auto;
     column-gap: var(--section-space);
     row-gap: var(--section-space);
     align-items: start;
@@ -143,6 +144,9 @@ button, input, select, .button {
 #datasetInformation {
     grid-area: plot;
 }
+#datasetTransforms {
+    grid-area: transform;
+}
 #defineSelection {
     grid-area: define;
 }
@@ -152,7 +156,8 @@ button, input, select, .button {
 @media (max-width: 900px) {
     #mainSection {
         grid-template-columns: minmax(0, 1fr);
-        grid-template-areas: "load" "plot" "define" "optimize";
+        grid-template-areas:
+            "load" "transform" "define" "plot" "optimize";
         grid-template-rows: auto;
     }
 }
@@ -287,7 +292,7 @@ button, input, select, .button {
 /* --- Objectives ----------------------------------------------------------- */
 #objectives {
     display: grid;
-    grid-template-columns: repeat(5, max-content);
+    grid-template-columns: repeat(6, max-content);
     justify-content: center; /* the loss centred in the column */
     column-gap: var(--equation-space);
     row-gap: var(--group-space); /* room for the names above each term */
@@ -316,6 +321,26 @@ button, input, select, .button {
     margin-left: var(--group-space);
     position: relative; /* anchors its name, the Objective above it */
 }
+#objectives .representation {
+    grid-column: 5;
+    margin-left: var(--group-space);
+    position: relative; /* anchors its name, the Representation above it */
+}
+/* the value and an invisible copy of the absolute name share a cell, so
+   the column is as wide as the wider of the two */
+#objectives .representation .fieldValue {
+    display: inline-grid;
+}
+#objectives .representation .fieldValue > .fit {
+    grid-area: 1 / 1;
+}
+#objectives .representation .fieldValue::after {
+    content: attr(data-label);
+    grid-area: 1 / 1;
+    visibility: hidden;
+    white-space: pre;
+    font-size: var(--name-size);
+}
 /* the names of the editable values, grey above them like the other fields */
 #objectives .tokenLabel {
     position: absolute;
@@ -323,6 +348,44 @@ button, input, select, .button {
     left: 0;
     white-space: nowrap;
     line-height: 1;
+}
+
+/* --- Transform Graph ------------------------------------------------------ */
+#transformGraph {
+    margin-top: var(--group-space);
+}
+#transformGraph circle {
+    fill: Canvas;
+    stroke: CanvasText;
+}
+#transformGraph .edge {
+    stroke: CanvasText;
+}
+#transformGraph .nodeName {
+    font-family: var(--control-font);
+    font-size: var(--name-size);
+    fill: CanvasText;
+}
+#transformGraph .nodeAdd, #transformGraph .nodeRemove {
+    font-size: 1.1rem;
+    cursor: pointer;
+}
+#transformGraph .nodeAdd {
+    fill: var(--dark-green);
+}
+#transformGraph .nodeAdd:hover {
+    fill: var(--green);
+}
+#transformGraph .nodeRemove {
+    fill: var(--orange);
+}
+#transformGraph .nodeRemove:hover {
+    fill: var(--dark-orange);
+}
+/* the graph cannot change while a selection runs */
+#datasetTransforms.running .nodeAdd,
+#datasetTransforms.running .nodeRemove {
+    visibility: hidden;
 }
 
 /* typeset part of the loss with invisible dropdown */
@@ -348,7 +411,7 @@ button, input, select, .button {
 
 /* removing a term, an orange × that is not part of the loss */
 .remove {
-    grid-column: 5;
+    grid-column: 6;
     margin-left: var(--row-space);
     font-size: var(--remove-size);
     line-height: 1;
@@ -363,15 +426,28 @@ button, input, select, .button {
 }
 
 /* --- Plots ---------------------------------------------------------------- */
+/* on their own lines, not on a text baseline that pads below them */
+#chart svg, #lossChart svg {
+    display: block;
+}
 #plot {
     position: relative;
-    max-width: 100vh;
+    /* the square plot, the loss chart at a quarter of the same width, and
+       the optimization controls share the window height */
+    max-width: calc(75vh - 15rem);
+    margin-inline: auto; /* centred in the column */
+    /* the axis band ends in air, so it pays one row of the section gap,
+       keeping the visible gap to the next heading on the rhythm */
+    margin-bottom: calc(-1 * var(--row-space));
 }
-#plot .axisField {
+.axisField {
     position: absolute;
     white-space: nowrap;
 }
-#xAxisField {
+#lossInformation {
+    position: relative; /* anchors the x axis toggle on the loss chart */
+}
+#xAxisField, #lossXAxisField {
     bottom: 4px;
     transform: translateX(-50%); /* centred on its left position */
 }

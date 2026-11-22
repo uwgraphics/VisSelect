@@ -49,6 +49,12 @@ class TestPreserve(ObjectiveTestCase):
         preserve = objective.Preserve(np.sum)
         self.assertEqual(preserve(self.subset), 6.0)
 
+    def testRepresentation(self):
+        """Test that a named representation is preserved, not the data"""
+        self.dataset["doubled"] = self.dataset["data"] * 2
+        preserve = objective.Preserve(metric.mean, representation="doubled")
+        self.assertEqual(preserve(self.subset), 2 * 3 * 1.5)
+
     def testReuseAcrossDatasets(self):
         """Test that one objective evaluates against each subset's dataset"""
         preserve = objective.Preserve(metric.mean)
@@ -124,7 +130,7 @@ class TestOutliers(unittest.TestCase):
 
     def testFactors(self):
         """Test the factors are near 1 for inliers and large for the outlier"""
-        factors = self.outliers._factors(self.dataset.data)
+        factors = self.outliers._factors(self.dataset["data"])
         self.assertGreater(factors[0], 2.0)
         self.assertLess(np.median(factors[1:]), 1.2)
         self.assertGreater(np.median(factors[1:]), 0.8)
@@ -133,7 +139,8 @@ class TestOutliers(unittest.TestCase):
         """Test that the factors are computed once and cached on the dataset"""
         subset = Subset(self.dataset, np.arange(50) < 5)
         self.outliers(subset)
-        self.assertIn(self.outliers._factors, self.dataset._characteristics)
+        self.assertIn((self.outliers._factors, "data"),
+                      self.dataset._characteristics)
 
     def testRejectNeighbors(self):
         """Test that too few or too many neighbors raise a ValueError"""

@@ -50,6 +50,19 @@ class Subset:
         """
         return np.count_nonzero(self._indicator)
 
+    def __getitem__(self, name: str) -> np.ndarray:
+        """
+        The items selected in the subset from a named representation of the
+        dataset, or from the data itself by "data"
+
+        Args:
+            name: The name of the representation, or "data" for the data
+
+        Raises:
+            KeyError: If no representation is stored under the name
+        """
+        return np.compress(self._indicator, self._dataset[name], axis=0)
+
     def freeze(self) -> "Subset":
         """
         Create an independent write-protected snapshot of the subset
@@ -57,13 +70,6 @@ class Subset:
         indicator = self._indicator.copy()
         indicator.flags.writeable = False
         return Subset(self._dataset, indicator)
-
-    @property
-    def data(self) -> np.ndarray:
-        """
-        The data array of the items selected in the subset
-        """
-        return np.compress(self._indicator, self._dataset.data, axis=0)
 
     @property
     def indicator(self) -> np.ndarray:

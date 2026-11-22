@@ -10,19 +10,34 @@ import {
 import {
     resetOptimization, setReady, setupOptimization
 } from "./optimization.js";
+import {
+    resetTransforms, setTransformsLocked, setupTransforms
+} from "./transforms.js";
 // the tooltips of the page's own controls, by element id or control name
 import tooltips from "/json/tooltips.json" with {type: "json"};
 
 // the sections shown once a dataset is loaded
-const sections = ["datasetInformation", "defineSelection", "optimization"]
-    .map(id => document.getElementById(id));
+const sections = [
+    "datasetInformation", "datasetTransforms", "defineSelection",
+    "optimization"
+].map(id => document.getElementById(id));
 
 /**
- * Show a newly loaded dataset, clearing the last selection, and reveal the
- * sections that use it
+ * Show a newly loaded dataset, clearing the last selection and the record
+ * of transforms of the data it replaces, and reveal the sections that use it
  * @param {Object} reply The dataset's feature names, size and data by feature
  */
 function showDataset(reply) {
+    resetTransforms();
+    showTransformed(reply);
+}
+
+/**
+ * Show the dataset's current data, after loading or transforming it,
+ * clearing the last selection
+ * @param {Object} reply The dataset's feature names, size and data by feature
+ */
+function showTransformed(reply) {
     const [rows, columns] = reply.size;
     resetOptimization();
     setSubsetSize(rows, columns);
@@ -38,6 +53,7 @@ function showDataset(reply) {
  */
 function lockProblem(running) {
     setDatasetLocked(running);
+    setTransformsLocked(running);
     setSelectionLocked(running);
 }
 
@@ -52,5 +68,6 @@ const catalog = await (await fetch("/catalog")).json();
 
 setupCharts();
 setupDataset(catalog, showDataset);
+setupTransforms(catalog, showTransformed);
 setupSelection(catalog, count => setReady(count > 0));
 setupOptimization(catalog, readSelection, lockProblem);

@@ -5,6 +5,7 @@ import {
     fitted, label, lockControls, options, readSettings, tip
 } from "./fields.js";
 import {formulaParts, isNegative} from "./formula.js";
+import {representationNames} from "./transforms.js";
 
 const selectionControls = document.getElementById("selectionControls");
 const objectives = document.getElementById("objectives");
@@ -15,6 +16,7 @@ const scalarization = document.getElementById("scalarization");
 
 let objectiveSettings = {}; // each objective's settings, from the catalog
 let onChange = () => {}; // called with the number of objectives on a change
+let nextTermId = 0; // numbers the term dropdowns so labels can name them
 
 /**
  * Set up defining the selection from the objectives and scalarizations in
@@ -32,6 +34,19 @@ export function setupSelection(catalog, changed) {
     scalarization.append(...options(Object.keys(catalog.scalarizations)));
     fitted(scalarization);
     fitted(subsetSize);
+
+    // representation choices only appear once there is more than one
+    document.addEventListener("representationsChanged", () => {
+        const hidden = representationNames().length < 2;
+        for (const field of objectives.querySelectorAll(".representation")) {
+            field.hidden = hidden;
+            if (hidden) { // only the data is left to evaluate on
+                const select = field.querySelector("select");
+                select.value = "data";
+                select.dispatchEvent(new Event("change")); // refit it
+            }
+        }
+    });
 }
 
 /**
@@ -112,7 +127,10 @@ function addTerm() {
         updateObjectives();
     });
 
-    row.append(lead, weightField(), formula, objective, remove);
+    row.append(
+        lead, weightField(), formula, objective, representationField(),
+        remove
+    );
     objectives.append(row);
     addObjective.selectedIndex = 0;
     updateObjectives();
@@ -163,6 +181,46 @@ function weightField() {
     weightValue.className = "weight fieldValue";
     weightValue.append(weightName, typeset, typed);
     return weightValue;
+}
+
+/**
+ * Create a term's representation field: which representation of the dataset
+ * the objective evaluates, refreshed from the live names whenever it is
+ * opened, since transforms store new representations after the term is added
+ * @returns {HTMLSpanElement} The representation's field
+ */
+function representationField() {
+    const select = document.createElement("select");
+    select.className = "editable";
+    select.id = `representation${nextTermId++}`;
+    select.dataset.setting = "representation";
+    select.title = tip("representation");
+    const refresh = () => {
+        const names = representationNames();
+        const value = select.value;
+        select.replaceChildren(...names.map(name => new Option(name)));
+        select.value = names.includes(value) ? value : "data";
+        select.dispatchEvent(new Event("change")); // refit it
+    };
+    refresh();
+    select.addEventListener("mousedown", refresh);
+    select.addEventListener("focus", refresh);
+
+    // laid out like the Objective note: the name above, anchored to the
+    // value, so the value sits on the term's baseline
+    const fieldName = document.createElement("label");
+    fieldName.className = "fieldName tokenLabel";
+    fieldName.textContent = label("representation");
+    fieldName.htmlFor = select.id;
+    const fieldValue = document.createElement("span");
+    fieldValue.className = "fieldValue"; // strips the dropdown's own chrome
+    fieldValue.dataset.label = label("representation"); // the width keeper
+    fieldValue.append(fitted(select));
+    const field = document.createElement("span");
+    field.className = "representation";
+    field.append(fieldName, fieldValue);
+    field.hidden = representationNames().length < 2;
+    return field;
 }
 
 /**

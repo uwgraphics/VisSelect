@@ -32,24 +32,24 @@ class TestDatasetConstructor(unittest.TestCase):
         """Test that a numeric 2D Numpy array can be loaded"""
         data = np.array([[9.0, 3.0, 5.0], [4.0, 8.0, 7.0], [1.0, 2.0, 6.0]])
         dataset = Dataset(data)
-        assert_array_equal(dataset.data, data)
+        assert_array_equal(dataset["data"], data)
 
     def testInitNonNumeric2DArray(self):
         """Test that a non-numeric 2D Numpy array can be loaded"""
         data = np.array([["Plane", "Bus"], ["Train", "Car"], ["Bike", "Boat"]])
         dataset = Dataset(data)
-        assert_array_equal(dataset.data, data)
+        assert_array_equal(dataset["data"], data)
 
     def testInitListOfLists(self):
         """Test that a numeric list of lists can be loaded"""
         dataset = Dataset([[9.0, 3.0, 5.0], [4.0, 8.0, 7.0]])
         array = np.asarray([[9.0, 3.0, 5.0], [4.0, 8.0, 7.0]])
-        assert_array_equal(dataset.data, array)
+        assert_array_equal(dataset["data"], array)
 
     def testInitStream(self):
         """Test that a csv text stream can be loaded with header features"""
         dataset = Dataset(io.StringIO("a,b\n1,2\n3,4\n"))
-        assert_array_equal(dataset.data, [[1.0, 2.0], [3.0, 4.0]])
+        assert_array_equal(dataset["data"], [[1.0, 2.0], [3.0, 4.0]])
         self.assertEqual(dataset.features, ["a", "b"])
 
     def testInitPath(self):
@@ -59,7 +59,7 @@ class TestDatasetConstructor(unittest.TestCase):
             path.write_text("a,b\n1,2\n3,4\n")
             for source in (str(path), path):
                 dataset = Dataset(source)
-                assert_array_equal(dataset.data, [[1.0, 2.0], [3.0, 4.0]])
+                assert_array_equal(dataset["data"], [[1.0, 2.0], [3.0, 4.0]])
                 self.assertEqual(dataset.features, ["a", "b"])
 
     def testRejectEmptyFile(self):
@@ -108,13 +108,13 @@ class TestDatasetProperties(unittest.TestCase):
         """Test the Dataset data accesses shared memory"""
         data = np.array([[9.0, 3.0, 5.0], [4.0, 8.0, 7.0]])
         dataset = Dataset(data)
-        self.assertTrue(np.shares_memory(dataset.data, data))
+        self.assertTrue(np.shares_memory(dataset["data"], data))
 
     def testDataImmutable(self):
         """Test writing to the Dataset data raises a ValueError"""
         dataset = Dataset(np.zeros((5, 15)))
         with self.assertRaises(ValueError):
-            dataset.data[0, 0] = 15
+            dataset["data"][0, 0] = 15
 
     def testSize(self):
         """Test that the Dataset size property returns the correct size pair"""
@@ -204,6 +204,114 @@ class TestDatasetCharacteristics(unittest.TestCase):
         with self.assertRaises(AttributeError):
             self.dataset._help
 
+class TestDatasetRepresentations(unittest.TestCase):
+    """
+    Test the Dataset representation tree: branches, replacing, and evaluation
+    """
+
+    def setUp(self):
+        """Create a test dataset with example data"""
+        self.data = np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]])
+        self.dataset = Dataset(self.data)
+
+    def testStore(self):
+        """Test that a stored representation is returned by its name"""
+        representation = np.zeros((3, 5))
+        self.dataset["wide"] = representation
+        self.assertTrue(np.shares_memory(self.dataset["wide"], representation))
+
+    def testDefault(self):
+        """Test that indexing by data returns the dataset's own data"""
+        self.assertTrue(np.shares_memory(self.dataset["data"], self.data))
+
+    def testImmutable(self):
+        """Test that a representation is read only but its source stays open"""
+        representation = np.zeros((3, 2))
+        self.dataset["rep"] = representation
+        with self.assertRaises(ValueError):
+            self.dataset["rep"][0, 0] = 1
+        representation[0, 0] = 1
+        self.assertEqual(representation[0, 0], 1)
+
+    def testRejectRows(self):
+        """Test that a row count mismatch raises a ValueError"""
+        with self.assertRaises(ValueError):
+            self.dataset["bad"] = np.zeros((4, 2))
+
+    def testRejectUnknown(self):
+        """Test that an unknown name raises a KeyError"""
+        with self.assertRaises(KeyError):
+            self.dataset["missing"]
+
+    def testEvaluateName(self):
+        """Test that a characteristic is cached per representation name"""
+        self.dataset["doubled"] = self.data * 2
+        assert_array_equal(self.dataset.evaluate(metric.mean), [3.0, 4.0])
+        assert_array_equal(self.dataset.evaluate(metric.mean, "doubled"),
+                           [6.0, 8.0])
+
+    def testStoreDropsLeaves(self):
+        """Test that restoring a branch drops only its own characteristics"""
+        self.dataset["rep"] = np.ones((3, 2))
+        rootMean = self.dataset.evaluate(metric.mean)
+        self.dataset.evaluate(metric.mean, "rep")
+        self.dataset["rep"] = np.full((3, 2), 2.0)
+        assert_array_equal(self.dataset.evaluate(metric.mean, "rep"),
+                           [2.0, 2.0])
+        self.assertIs(self.dataset.evaluate(metric.mean), rootMean)
+
+    def testDelete(self):
+        """Test that deleting a branch drops it and only its characteristics"""
+        self.dataset["rep"] = np.ones((3, 2))
+        self.dataset.evaluate(metric.mean, "rep")
+        rootMean = self.dataset.evaluate(metric.mean)
+        del self.dataset["rep"]
+        with self.assertRaises(KeyError):
+            self.dataset["rep"]
+        self.assertIs(self.dataset.evaluate(metric.mean), rootMean)
+        self.dataset["rep"] = np.full((3, 2), 2.0) # the old leaves are gone
+        assert_array_equal(self.dataset.evaluate(metric.mean, "rep"),
+                           [2.0, 2.0])
+
+    def testDeleteData(self):
+        """Test that deleting the data name raises a ValueError"""
+        with self.assertRaises(ValueError):
+            del self.dataset["data"]
+
+    def testDeleteUnknown(self):
+        """Test that deleting an unknown name raises a KeyError"""
+        with self.assertRaises(KeyError):
+            del self.dataset["missing"]
+
+    def testReplace(self):
+        """Test that assigning data swaps it and drops the derived tree"""
+        self.dataset["rep"] = np.zeros((3, 2))
+        self.dataset.evaluate(metric.mean)
+        self.dataset["data"] = self.data * 2
+        assert_array_equal(self.dataset["data"], self.data * 2)
+        with self.assertRaises(KeyError):
+            self.dataset["rep"]
+        assert_array_equal(self.dataset.evaluate(metric.mean), [6.0, 8.0])
+
+    def testReplaceReject(self):
+        """Test that assigning data with different rows raises a ValueError"""
+        with self.assertRaises(ValueError):
+            self.dataset["data"] = np.zeros((4, 2))
+
+    def testReplaceFeatures(self):
+        """Test that feature names survive same width and fell on a change"""
+        dataset = Dataset(self.data, features=["a", "b"])
+        dataset["data"] = self.data * 2
+        self.assertEqual(dataset.features, ["a", "b"])
+        dataset["data"] = np.zeros((3, 3))
+        self.assertEqual(dataset.features, ["0", "1", "2"])
+
+    def testReplaceNoFeatures(self):
+        """Test that a width change works before features ever materialize"""
+        dataset = Dataset(self.data)
+        dataset["data"] = np.zeros((3, 3))
+        self.assertEqual(dataset.features, ["0", "1", "2"])
+
 class Table:
     """
     A minimal table object for testing to_numpy ingestion
@@ -229,7 +337,7 @@ class TestDatasetTable(unittest.TestCase):
     def testInitTableColumns(self):
         """Test that a table converts and columns load as feature names"""
         dataset = Dataset(Table([[1.0, 2.0], [3.0, 4.0]], columns=["x", "y"]))
-        assert_array_equal(dataset.data, np.asarray([[1.0, 2.0], [3.0, 4.0]]))
+        assert_array_equal(dataset["data"], np.asarray([[1.0, 2.0], [3.0, 4.0]]))
         self.assertEqual(dataset.features, ["x", "y"])
 
     def testRejectTableConversionFailure(self):
@@ -255,7 +363,7 @@ class TestDatasetDataFrame(unittest.TestCase):
         """Test that a DataFrame converts and columns load as feature names"""
         df = pd.DataFrame({"a": [1.0, 2.0], "b": [3.0, 4.0]})
         dataset = Dataset(df)
-        assert_array_equal(dataset.data, df.to_numpy())
+        assert_array_equal(dataset["data"], df.to_numpy())
         self.assertEqual(dataset.features, ["a", "b"])
 
     def testDataFrameExplicitFeatures(self):
@@ -268,7 +376,7 @@ class TestDatasetDataFrame(unittest.TestCase):
         """Test that a DataFrame with mixed types loads an object array"""
         df = pd.DataFrame({"a": [1.0, 2.0], "b": ["x", "y"]})
         dataset = Dataset(df)
-        self.assertEqual(dataset.data.dtype, np.dtype(object))
+        self.assertEqual(dataset["data"].dtype, np.dtype(object))
 
 
 if __name__ == "__main__":

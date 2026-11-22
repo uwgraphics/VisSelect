@@ -11,11 +11,9 @@
         <script type="module" src="/js/main.js"></script>
     </head>
     <body>
-        <header>
+        <!-- <header>
             <h1>Flexible Subset Selection</h1>
-        </header>
-        <!-- <h2>Abstract</h2>
-        <p>Visualization designers commonly use subset selection to reduce clutter, reduce computational load, and summarize data. However, without a general strategy for designing and prototyping selection approaches, designers rely on standard methods rather than custom solutions that suit particular visualization goals. We propose a strategy that expresses visualization goals as composable objective functions in a multi-criterion optimization formulation. Designers <em>express</em> selection criteria as objective functions, <em>blend</em> the objectives, and <em>tune</em> parameters to select subsets that meet the needs of particular visualizations. Experiments with general-purpose solvers show how they scale and that they support rapid prototyping of visualization-specific selection approaches. We demonstrate the strategy with examples that reduce clutter in a scatterplot while preserving the data distribution, summarize datasets with cluster representatives, and select subsets that cover the full dataset. Our strategy enables designers to develop custom subset selection approaches without implementing specialized algorithms.</p> -->
+        </header> -->
         <div id="mainSection">
             <section id="loadDataset">
                 <div class="sectionHeading">
@@ -61,6 +59,27 @@
             </section>
 
             <section id="datasetInformation" hidden>
+                <div class="sectionHeading">
+                    <h2>Visualization</h2>
+                </div>
+                <p id="chartControls">
+                    <span class="field">
+                        <label class="fieldName" for="chartType">
+                            Chart
+                        </label>
+                        <span class="fieldValue">
+                            <select id="chartType" class="editable">
+                                <option>Scatterplot</option>
+                            </select>
+                        </span>
+                    </span>
+                    <span id="chartOnField" class="field" hidden>
+                        <label class="fieldName" for="chartOn">On</label>
+                        <span class="fieldValue">
+                            <select id="chartOn" class="editable"></select>
+                        </span>
+                    </span>
+                </p>
                 <div id="plot" hidden>
                     <div id="chart"></div>
                     <span id="xAxisField" class="fieldValue axisField">
@@ -108,6 +127,18 @@
                 </div>
             </section>
 
+            <section id="datasetTransforms" hidden>
+                <div class="sectionHeading">
+                    <h2>Data Transforms</h2>
+                    <div>
+                        <button id="transform" class="button"
+                            type="button" hidden>Add Transform</button>
+                        <button id="applyTransform" class="button"
+                            type="button" hidden>Apply</button>
+                    </div>
+                </div>
+            </section>
+
             <section id="optimization" hidden>
                 <div class="sectionHeading">
                     <h2>Optimization</h2>
@@ -132,9 +163,16 @@
                         <span id="algorithmSettings"></span>
                         <span id="selectionInfo"></span>
                     </p>
-                    <div id="lossInformation">
-                        <div id="lossChart"></div>
-                    </div>
+                </div>
+                <div id="lossInformation">
+                    <div id="lossChart"></div>
+                    <span id="lossXAxisField" class="fieldValue axisField"
+                        hidden>
+                        <select id="lossXAxis" class="editable">
+                            <option value="evaluations">Evaluations</option>
+                            <option value="time">Time (s)</option>
+                        </select>
+                    </span>
                 </div>
             </section>
         </div>

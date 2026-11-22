@@ -10,13 +10,14 @@ import threading
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Iterator, get_args, get_origin
+from typing import Iterator, Literal, get_args, get_origin
+from urllib.parse import parse_qs, urlparse
 
 # third party
 import numpy as np
 
 # local files
-from . import algorithm, generate, metric, objective, scalarization
+from . import algorithm, generate, metric, objective, scalarization, transform
 from .dataset import Dataset
 from .loss import Loss
 from .problem import Problem
@@ -60,42 +61,35 @@ def buildCatalog() -> dict[str, dict[str, dict]]:
     Build the catalog of all objectives, algorithms, dataset generators,
     metrics and scalarizations and their available settings
     """
-    # the public functions or classes defined in each module of the package
-    searches = [
-        (metric, inspect.isfunction),
-        (objective, inspect.isclass),
-        (algorithm, inspect.isclass),
-        (generate, inspect.isfunction),
-        (scalarization, inspect.isclass),
-    ]
+    # the public functions or classes of each module, by catalog section
+    kinds = {
+        "objectives": (objective, inspect.isclass),
+        "algorithms": (algorithm, inspect.isclass),
+        "generators": (generate, inspect.isfunction),
+        "metrics": (metric, inspect.isfunction),
+        "scalarizations": (scalarization, inspect.isclass),
+        "transforms": (transform, inspect.isfunction),
+    }
+    sections = {}
+    for section, (module, kind) in kinds.items():
+        sections[section] = {
+            name: member for name, member in inspect.getmembers(module, kind)
+            if member.__module__ == module.__name__ # defined, not imported
+            and not name.startswith("_")
+        }
 
-    public = {}
-    for module, kind in searches:
-        public[module] = {}
-        for name, member in inspect.getmembers(module, kind):
-            defined = member.__module__ == module.__name__ # not imported
-            private = name.startswith("_")
-            if defined and not private:
-                public[module][name] = member
-
-    # the metrics in the order they are defined, and those giving a scalar,
-    # whose difference is an absolute value the same under every norm
-    metrics = dict(sorted(
-        public[metric].items(), key=lambda m: m[1].__code__.co_firstlineno
+    # the metric functions in definition order, and if they give a scalar
+    sections["metrics"] = dict(sorted(
+        sections["metrics"].items(),
+        key=lambda m: m[1].__code__.co_firstlineno
     ))
+    metrics = sections["metrics"]
     scalar = [
         name for name, function in metrics.items()
         if inspect.signature(function).return_annotation is float
     ]
 
     # describe each constructor's settings for the page from its signature
-    sections = {
-        "objectives": public[objective],
-        "algorithms": public[algorithm],
-        "generators": public[generate],
-        "metrics": metrics,
-        "scalarizations": public[scalarization],
-    }
     catalog = {}
     for section, constructors in sections.items():
         catalog[section] = {}
@@ -106,8 +100,14 @@ def buildCatalog() -> dict[str, dict[str, dict]]:
                 parameters = []
             settings = {}
             for name, parameter in parameters:
-                # a scalarization's weights come from the objectives' weights
                 if section == "scalarizations" and name == "weights":
+                    continue
+                if name == "representation":
+                    continue
+
+                # a transform's data comes from the dataset, and the page
+                # applies every transform to every feature
+                if section == "transforms" and name in ("data", "indices"):
                     continue
 
                 # the default value, or None if the setting is required
@@ -121,10 +121,10 @@ def buildCatalog() -> dict[str, dict[str, dict]]:
                     choices = list(metrics)
                     default = choices[0]
 
-                # whole or decimal numbers, from the annotation, and whether
-                # the setting takes a pair such as an interval
                 annotation = parameter.annotation
                 types = get_args(annotation) or (annotation,)
+                if get_origin(annotation) is Literal: # named choices
+                    choices = list(types)
                 integer = int in types and float not in types
                 pair = get_origin(annotation) is tuple
                 settings[name] = {
@@ -146,7 +146,7 @@ def buildCatalog() -> dict[str, dict[str, dict]]:
 
 class Server(ThreadingHTTPServer):
     """
-    Serves the package as an interactive webapp
+    Serves the package as an interactive web application
     """
     def __init__(self, host, port, handler):
         super().__init__((host, port), handler)
@@ -174,6 +174,32 @@ class Server(ThreadingHTTPServer):
         entry = self.catalog["generators"][request["generator"]]
         data = entry["constructor"](**request["settings"])
         self.dataset = Dataset(data)
+
+    def transform(self, request: dict) -> None:
+        """
+        Transform a representation of the loaded dataset as described by a
+        page request, into another representation or over the data itself
+
+        Args:
+            request: The transform, chosen by name, with its settings, the
+                name it reads ("from") and the name it stores to ("into")
+
+        Raises:
+            KeyError: If the transform, the name read, or a field is not found
+            TypeError: If a setting is missing or not accepted
+            ValueError: If no dataset is loaded, the name stored to is empty,
+                or the package rejects a value
+        """
+        if self.dataset is None:
+            raise ValueError("No dataset loaded")
+        if not request["into"]:
+            raise ValueError("The name to store into is empty")
+
+        entry = self.catalog["transforms"][request["transform"]]
+        source = self.dataset[request["from"]]
+        self.dataset[request["into"]] = entry["constructor"](
+            source, **request["settings"]
+        )
 
     def select(self, request: dict) -> dict:
         """
@@ -307,6 +333,22 @@ class Handler(SimpleHTTPRequestHandler):
             finally:
                 with self.server.listening:
                     self.server.listeners.remove(listener)
+        elif self.path.startswith("/representation?"): # one array, by name
+            query = parse_qs(urlparse(self.path).query)
+            name = query.get("name", [""])[0]
+            try:
+                array = self.server.dataset[name]
+            except (KeyError, TypeError) as e: # TypeError: no dataset loaded
+                self.sendJSON(400, {"error": str(e)})
+                return
+            # the dataset's feature names only fit an array of the same width
+            same = array.shape[1] == self.server.dataset.size[1]
+            features = (self.server.dataset.features if same
+                        else [str(i) for i in range(array.shape[1])])
+            self.sendJSON(200, {
+                "features": features,
+                "data": array.T.tolist()
+            })
         elif self.path == "/catalog": # the settings of each entry, as JSON
             catalog = {}
             for section, entries in self.server.catalog.items():
@@ -321,7 +363,7 @@ class Handler(SimpleHTTPRequestHandler):
         """
         Handles POST HTTP responses to a client using the server
         """
-        if self.path == "/dataset":
+        if self.path == "/dataset": # Send the dataset loaded from file
             file = self.rfile.read(int(self.headers["Content-Length"])).decode()
             try:
                 self.server.dataset = Dataset(io.StringIO(file))
@@ -329,7 +371,7 @@ class Handler(SimpleHTTPRequestHandler):
                 self.send_error(400, explain=str(e))
                 return
             self.sendData()
-        elif self.path == "/generate":
+        elif self.path == "/generate": # Send a synthetically generated  dataset
             body = self.rfile.read(int(self.headers["Content-Length"]))
             try:
                 self.server.generate(json.loads(body))
@@ -337,7 +379,23 @@ class Handler(SimpleHTTPRequestHandler):
                 self.sendJSON(400, {"error": str(e)})
                 return
             self.sendData()
-        elif self.path == "/select":
+        elif self.path == "/transform": # Send the transformed representation
+            body = self.rfile.read(int(self.headers["Content-Length"]))
+            try:
+                self.server.transform(json.loads(body))
+            except (KeyError, TypeError, ValueError) as e:
+                self.sendJSON(400, {"error": str(e)})
+                return
+            self.sendData()
+        elif self.path == "/remove": # Send the removal information
+            body = self.rfile.read(int(self.headers["Content-Length"]))
+            try:
+                del self.server.dataset[json.loads(body)["name"]]
+            except (KeyError, TypeError, ValueError) as e:
+                self.sendJSON(400, {"error": str(e)})
+                return
+            self.sendJSON(200, {"removed": True})
+        elif self.path == "/select": # Send the selection information
             body = self.rfile.read(int(self.headers["Content-Length"]))
             try:
                 reply = self.server.select(json.loads(body))
@@ -359,7 +417,7 @@ class Handler(SimpleHTTPRequestHandler):
         self.sendJSON(200, {
             "features": dataset.features,
             "size": dataset.size,
-            "data": dataset.data.T.tolist()
+            "data": dataset["data"].T.tolist()
         })
 
     def sendJSON(self, code: int, message) -> None:

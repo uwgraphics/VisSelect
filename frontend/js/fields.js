@@ -136,8 +136,12 @@ export function settingControl(name, setting, value) {
     input.dataset.setting = name;
     if (setting.description) input.title = setting.description;
 
-    // an empty setting is sent as None, which means random for seeds
-    if (value == null && !choices) input.placeholder = "Random";
+    // an empty seed is sent as None, which means random; any other setting
+    // without a default is required, shown as a question to answer, since
+    // an empty input would collapse to nothing in the fitted width
+    if (value == null && !choices) {
+        input.placeholder = name === "seed" ? "Random" : "?";
+    }
 
     if (pair) input.dataset.pair = "";
     return input;

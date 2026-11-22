@@ -1,6 +1,7 @@
 // The scatterplot of the dataset and the line chart of the loss
 
 import {fitted} from "./fields.js";
+import {representationNames} from "./transforms.js";
 
 const chart = document.getElementById("chart");
 const lossChart = document.getElementById("lossChart");
@@ -9,12 +10,19 @@ const xFeature = document.getElementById("xFeature");
 const yFeature = document.getElementById("yFeature");
 const xAxisField = document.getElementById("xAxisField");
 const yAxisField = document.getElementById("yAxisField");
+const chartType = document.getElementById("chartType");
+const chartOn = document.getElementById("chartOn");
+const chartOnField = document.getElementById("chartOnField");
+const lossXAxis = document.getElementById("lossXAxis");
+const lossXAxisField = document.getElementById("lossXAxisField");
 
 // what the charts show, kept to redraw them when their space changes size
 let data = null; // the loaded dataset as one array of values per feature
+let features = []; // the feature names of what the scatterplot shows
 let subset = new Set(); // the indices of the items in the selected subset
-let improvements = []; // the [evaluation, loss] of each new best subset
+let improvements = []; // the [evaluation, time, loss] of each new best subset
 let evaluations = 1; // the number of evaluations of the selection so far
+let elapsed = 0; // the seconds the selection has run so far
 
 let drawPending = false; // whether a redraw is already waiting for a frame
 
@@ -28,9 +36,46 @@ export function setupCharts() {
     xFeature.addEventListener("change", redraw);
     yFeature.addEventListener("change", redraw);
 
+    // which representation the chart shows, offered once there is more
+    // than one, following the transform tree as it changes
+    fitted(chartType);
+    chartOn.append(new Option("data"));
+    fitted(chartOn);
+    chartOn.addEventListener("change", showRepresentation);
+    document.addEventListener("representationsChanged", () => {
+        const names = representationNames();
+        chartOnField.hidden = names.length < 2;
+        const value = names.includes(chartOn.value) ? chartOn.value : "data";
+        chartOn.replaceChildren(...names.map(name => new Option(name)));
+        chartOn.value = value;
+        // refetch what is shown: it may have just been transformed over
+        chartOn.dispatchEvent(new Event("change"));
+    });
+
+    // the loss chart's x axis toggles between evaluations and time
+    fitted(lossXAxis);
+    lossXAxis.addEventListener("change", drawLossChart);
+
     const resizing = new ResizeObserver(scheduleDraw);
     resizing.observe(chart);
     resizing.observe(lossChart);
+}
+
+/**
+ * Show the representation chosen for the chart, fetched from the server,
+ * keeping the marked subset, whose items are the same rows everywhere, and
+ * the chosen axes when the features are unchanged
+ */
+async function showRepresentation() {
+    const response = await fetch(
+        `/representation?name=${encodeURIComponent(chartOn.value)}`);
+    if (!response.ok) return;
+    const reply = await response.json();
+    if (reply.features.join("\u0000") !== features.join("\u0000")) {
+        showFeatures(reply.features);
+    }
+    data = reply.data;
+    redraw();
 }
 
 /**
@@ -38,16 +83,17 @@ export function setupCharts() {
  * first two features on the axes, and show the scatterplot
  * @param {string[]} features The dataset's feature names
  */
-export function showFeatures(features) {
+export function showFeatures(names) {
+    features = names;
     // features named only by their column numbers, as generated datasets are,
     // shown as "Feature 0" and so on so a bare number reads as a feature
-    const numbered = features.every((name, i) => name === String(i));
+    const numbered = names.every((name, i) => name === String(i));
     for (const select of [xFeature, yFeature]) {
-        select.replaceChildren(...features.map((name, index) =>
+        select.replaceChildren(...names.map((name, index) =>
             new Option(numbered ? `Feature ${name}` : name, index)));
     }
     xFeature.value = 0;
-    yFeature.value = Math.min(1, features.length - 1);
+    yFeature.value = Math.min(1, names.length - 1);
     for (const select of [xFeature, yFeature]) {
         select.dispatchEvent(new Event("input")); // refit it
     }
@@ -79,17 +125,21 @@ export function showSubset(indices) {
 export function startLoss() {
     improvements = [];
     evaluations = 1;
+    elapsed = 0;
     drawLossChart();
 }
 
 /**
  * Show the best loss found so far over the evaluations on the loss chart
- * @param {number[][]} best The [evaluation, loss] of each new best subset
+ * @param {number[][]} best The [evaluation, time, loss] of each new best
+ *     subset
  * @param {number} count The number of evaluations so far
+ * @param {number} time The seconds the selection has run so far
  */
-export function showLoss(best, count) {
+export function showLoss(best, count, time) {
     improvements = best;
     evaluations = count;
+    elapsed = time;
     scheduleDraw();
 }
 
@@ -123,7 +173,9 @@ export function redraw() {
 export function clearLossChart() {
     improvements = [];
     evaluations = 1;
+    elapsed = 0;
     lossChart.replaceChildren();
+    lossXAxisField.hidden = true;
 }
 
 /**
@@ -190,16 +242,24 @@ function drawLossChart() {
     // room on the left and bottom for the tick values and axis names
     const margin = {top: 20, right: 20, bottom: 60, left: 75};
 
-    // hold the latest best loss level out to the latest evaluation
+    // the x axis counts evaluations or seconds, as toggled on the axis
+    const timed = lossXAxis.value === "time";
+    const along = timed ? point => point[1] : point => point[0];
+    const span = timed ? elapsed : evaluations;
+
+    // hold the latest best loss level out to the latest progress
     const last = improvements.at(-1);
-    const points = last ? [...improvements, [evaluations, last[1]]] : [];
+    const points = last
+        ? [...improvements.map(point => [along(point), point[2]]),
+           [span, last[2]]]
+        : [];
 
     // evaluation counts get long, so about one tick per 80 pixels, on an axis
     // from 0 rounded out to a whole tick so there is always one at each end
     const xTicks = Math.max(2, Math.floor(
         (width - margin.left - margin.right) / 80));
     const x = d3.scaleLinear()
-        .domain([0, Math.max(evaluations, 1)])
+        .domain([0, span > 0 ? span : 1])
         .range([margin.left, width - margin.right])
         .nice(xTicks);
 
@@ -220,9 +280,11 @@ function drawLossChart() {
         .attr("width", width)
         .attr("height", height);
 
-    // only whole evaluations, written short with SI prefixes such as 10k
-    const xAxis = d3.axisBottom(x)
-        .tickValues(x.ticks(xTicks).filter(Number.isInteger))
+    // only whole evaluations, written short with SI prefixes such as 10k;
+    // seconds keep their decimals
+    const xAxis = d3.axisBottom(x);
+    if (timed) xAxis.ticks(xTicks);
+    else xAxis.tickValues(x.ticks(xTicks).filter(Number.isInteger))
         .tickFormat(d3.format("~s"));
     svg.append("g")
         .attr("transform", `translate(0,${height - margin.bottom})`)
@@ -232,13 +294,11 @@ function drawLossChart() {
         .attr("transform", `translate(${margin.left},0)`)
         .call(d3.axisLeft(y).ticks(yTicks));
 
-    // the axis names, centred along each axis at the edge of the chart
-    svg.append("text")
-        .attr("class", "axisLabel")
-        .attr("x", (margin.left + width - margin.right) / 2)
-        .attr("y", height - 8)
-        .attr("text-anchor", "middle")
-        .text("Evaluations");
+    // the y axis name along the axis; the x axis name is the toggle,
+    // centred below the axis like the scatterplot's feature dropdowns
+    lossXAxisField.style.left =
+        `${(margin.left + width - margin.right) / 2}px`;
+    lossXAxisField.hidden = false;
 
     const middle = (margin.top + height - margin.bottom) / 2;
     svg.append("text")

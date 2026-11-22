@@ -10,5 +10,17 @@
     "weight": "The λ weight value of this objective",
     "remove": "Remove this objective",
     "relationFixed": "The value is fixed",
-    "relationRandom": "The value is drawn uniformly at random from the range"
+    "relationRandom": "The value is drawn uniformly at random from the range",
+    "transform": "Add a transform of the dataset's data",
+    "applyTransform": "Apply the transform",
+    "removeTransform": "Cancel adding this data transform",
+    "transformChoice": "The transform applied to the representation it reads",
+    "transformFrom": "The representation the transform reads",
+    "transformInto": "Where the result is stored",
+    "representation": "The representation the objective is evaluated on",
+    "nodeAdd": "Add a transform of this representation",
+    "nodeRemove": "Remove this representation and everything derived from it",
+    "chartType": "The type of chart shown",
+    "chartOn": "The representation of the dataset the chart shows",
+    "lossXAxis": "The measure of progress along the x axis"
 }

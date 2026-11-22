@@ -14,7 +14,7 @@ const stopSelection = document.getElementById("stopSelection");
 const selectionInfo = document.getElementById("selectionInfo");
 
 let algorithms = {}; // each algorithm's settings, from the catalog
-let improvements = []; // the [evaluation, loss] of each new best subset
+let improvements = []; // the [evaluation, time, loss] of each new best subset
 let readSelection = () => ({}); // reads the selection as defined
 let lockOthers = () => {}; // locks the other sections while a run goes on
 
@@ -115,10 +115,10 @@ function follow(event) {
     }
 
     if (message.status === "improved") {
-        improvements.push([message.evaluation, message.loss]);
+        improvements.push([message.evaluation, message.time, message.loss]);
     }
     showSubset(new Set(message.subset));
-    showLoss(improvements, message.evaluation);
+    showLoss(improvements, message.evaluation, message.time);
     // the share of the declared total done so far stands in for Running,
     // when the algorithm declared one
     const {total, evaluation} = message;

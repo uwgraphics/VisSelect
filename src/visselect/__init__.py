@@ -17,6 +17,7 @@ from . import generate
 from . import metric
 from . import objective
 from . import scalarization
+from . import transform
 
 
 __all__ = [
@@ -29,7 +30,8 @@ __all__ = [
     "generate",
     "metric",
     "objective", 
-    "scalarization"
+    "scalarization",
+    "transform"
 ]
 
 __version__ = version("visselect")

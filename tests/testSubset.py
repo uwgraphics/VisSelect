@@ -77,9 +77,9 @@ class TestSubsetProperties(SubsetTestCase):
         self.assertEqual(len(subset), 2)
 
     def testData(self):
-        """Test that the Subset data returns the selected items"""
+        """Test that indexing by data returns the selected items"""
         subset = Subset(self.dataset, np.array([True, False, False]))
-        assert_array_equal(subset.data, np.array([[9.0, 3.0, 5.0]]))
+        assert_array_equal(subset["data"], np.array([[9.0, 3.0, 5.0]]))
 
     def testFreeze(self):
         """Test that a frozen snapshot does not change with the subset"""
@@ -94,6 +94,12 @@ class TestSubsetProperties(SubsetTestCase):
         frozen = Subset(self.dataset, self.indicator).freeze()
         with self.assertRaises(ValueError):
             frozen._indicator[1] = True
+
+    def testRepresentation(self):
+        """Test that indexing selects the subset's items of a representation"""
+        self.dataset["doubled"] = self.dataset["data"] * 2
+        subset = Subset(self.dataset, self.indicator)
+        assert_array_equal(subset["doubled"], self.dataset["data"][[0, 2]] * 2)
 
     def testDataset(self):
         """Test that the Subset dataset returns the dataset selected from"""
