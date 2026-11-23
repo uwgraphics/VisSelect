@@ -23,8 +23,8 @@ email = "cbbcbail@cs.wisc.edu"
 Repository = "https://github.com/uwgraphics/VisSelect"
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["python"]
 
 [tool.coverage.run]
-source = ["src/visselect"]
+source = ["python/visselect"]
 branch = true

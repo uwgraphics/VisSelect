@@ -22,5 +22,6 @@
     "nodeRemove": "Remove this representation and everything derived from it",
     "chartType": "The type of chart shown",
     "chartOn": "The representation of the dataset the chart shows",
-    "lossXAxis": "The measure of progress along the x axis"
+    "lossXAxis": "The measure of progress along the x axis",
+    "generateDataset": "Generate a dataset from the specified distribution"
 }

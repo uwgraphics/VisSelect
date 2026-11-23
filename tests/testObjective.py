@@ -150,6 +150,43 @@ class TestOutliers(unittest.TestCase):
             objective.Outliers(neighbors=50)(
                 Subset(self.dataset, np.arange(50) < 5))
 
+class TestClusterCenters(unittest.TestCase):
+    """
+    Test the cluster centers objective class
+    """
+
+    def setUp(self):
+        """Create three tight clusters of five items each"""
+        rng = np.random.default_rng(0)
+        means = [[0.0, 0.0], [10.0, 10.0], [20.0, 0.0]]
+        data = np.vstack([rng.normal(mean, 0.1, (5, 2)) for mean in means])
+        self.dataset = Dataset(data)
+        self.clusters = objective.ClusterCenters(k=3, seed=0)
+
+    def testRepresentatives(self):
+        """Test that one item per cluster beats items from one cluster"""
+        spread = np.isin(np.arange(15), [0, 5, 10])
+        bunched = np.arange(15) < 3
+        self.assertLess(self.clusters(Subset(self.dataset, spread)),
+                        self.clusters(Subset(self.dataset, bunched)))
+
+    def testSeed(self):
+        """Test that a seed reproduces the centers across instances"""
+        subset = Subset(self.dataset, np.arange(15) < 5)
+        other = objective.ClusterCenters(k=3, seed=0)
+        self.assertEqual(self.clusters(subset), other(subset))
+
+    def testRejectK(self):
+        """Test that a k below 1 raises a ValueError"""
+        with self.assertRaises(ValueError):
+            objective.ClusterCenters(k=0)
+
+    def testRejectFew(self):
+        """Test that k at or above the number of items raises a ValueError"""
+        clusters = objective.ClusterCenters(k=15)
+        with self.assertRaises(ValueError):
+            clusters(Subset(self.dataset, np.arange(15) < 5))
+
 
 if __name__ == "__main__":
     unittest.main()

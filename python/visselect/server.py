@@ -434,7 +434,7 @@ class Handler(SimpleHTTPRequestHandler):
 if __name__ == "__main__":
     hostName = "localhost"
     serverPort = 8080
-    path = Path(__file__).resolve().parents[2] / "frontend"
+    path = Path(__file__).resolve().parents[2]
 
     handler = partial(Handler, directory=path)
 

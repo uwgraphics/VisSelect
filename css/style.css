@@ -1,17 +1,6 @@
 /* --- Variables ------------------------------------------------------------ */
+/* the colors are in palette.css, shared with the paper figures */
 :root {
-    /* Colors */
-    --green: #8dd3c7;
-    --dark-green: #338477;
-    --orange: #fb8072;
-    --dark-orange: #e0503f;
-    --yellow: #fdb462;
-    --blue: #8dadd3;
-    --dark-blue: #3a6ea5;
-    --grey: #eff0f2;
-    --light-grey: #f3f7f7; /* the title band, from the personal site */
-    --dark-grey: #676767;
-
     /* Type Scales */
     --title-size: 2.2rem;
     --heading-size: 1.7rem;
@@ -21,6 +10,7 @@
     --name-size: 0.9rem; /* the label names above values */
 
     /* Spacing Scales */
+    --header-space: 1.2rem; /* space around title header */
     --section-space: 2.1rem; /* between sections, and around the page */
     --group-space: 1.1rem; /* a heading to its content, field to field */
     --row-space: 1rem; /* between the rows of a section's controls */
@@ -80,10 +70,21 @@
     font-style: normal;
     font-display: swap;
 }
-
-/* MathML typeset by the browser with the font's own math layout table */
-math {
+math { /* MathML typeset in browser with the font's math table */
     font-family: var(--math-font);
+}
+
+/* --- Media Queries -------------------------------------------------------- */
+@media (max-width: 900px) {
+    #mainSection {
+        flex-direction: column;
+    }
+    #leftColumn, #rightColumn {
+        display: contents; /* the sections stack as one column */
+    }
+    #optimization {
+        order: 1; /* after the visualization, so the plot sits above it */
+    }
 }
 
 /* --- Page ----------------------------------------------------------------- */
@@ -92,16 +93,15 @@ body {
     font-family: var(--page-font);
 }
 
-/* no browser margins, so every gap comes from the spacing scale */
 h1, h2, p {
     margin: 0;
 }
-/* the title on a light band across the whole page, bled through the body's
-   margin so the title keeps its place and alignment */
 header {
     margin: calc(-1 * var(--section-space));
     margin-bottom: var(--section-space);
-    padding: var(--section-space);
+    padding-top: var(--header-space);
+    padding-bottom: var(--header-space);
+    padding-left: var(--section-space);
     background: var(--light-grey);
 }
 h1 {
@@ -112,13 +112,9 @@ h2 {
     font-weight: 400;
     font-size: var(--heading-size);
 }
-
-/* messages about failures, such as a dataset or selection that failed */
 .error {
     color: var(--dark-orange);
 }
-
-/* controls, and labels shown as buttons, in the value font */
 button, input, select, .button {
     font-family: var(--control-font);
     font-size: var(--control-size);
@@ -126,44 +122,19 @@ button, input, select, .button {
 
 /* --- Layout --------------------------------------------------------------- */
 #mainSection {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-areas:
-        "load plot"
-        "transform plot"
-        "define plot"
-        "define optimize";
-    grid-template-rows: auto auto 1fr auto;
-    column-gap: var(--section-space);
+    display: flex; /* two columns, stretched to the same height */
+    gap: var(--section-space);
+}
+#leftColumn, #rightColumn {
+    flex: 1; /* equal halves */
+    min-width: 0;
+}
+#leftColumn {
+    display: flex;
+    flex-direction: column;
     row-gap: var(--section-space);
-    align-items: start;
 }
-#loadDataset {
-    grid-area: load;
-}
-#datasetInformation {
-    grid-area: plot;
-}
-#datasetTransforms {
-    grid-area: transform;
-}
-#defineSelection {
-    grid-area: define;
-}
-#optimization {
-    grid-area: optimize;
-}
-@media (max-width: 900px) {
-    #mainSection {
-        grid-template-columns: minmax(0, 1fr);
-        grid-template-areas:
-            "load" "transform" "define" "plot" "optimize";
-        grid-template-rows: auto;
-    }
-}
-
-/* a section heading with centred buttons beside it */
-.sectionHeading {
+.sectionHeading { /* a section heading with centred buttons beside it */
     display: flex;
     flex-wrap: wrap;
     align-items: center;
@@ -171,24 +142,28 @@ button, input, select, .button {
     row-gap: var(--wrap-space);
     margin-bottom: var(--group-space);
 }
-
-/* the rows inside a section's controls, one step apart */
-#generatorControls > * + *,
-#fileControls > * + *,
-#selectionControls > * + *,
-#optimizationControls > * + * {
+.sectionHeading:not(:has(~ :not([hidden]))) { 
+    margin-bottom: 0 
+}
+#objectives:not(:empty) {
     margin-top: var(--row-space);
 }
-
-/* the run's information on the algorithm's row, set apart as its own group */
-#selectionInfo {
-    margin-left: var(--section-space);
+#generatorControls p, #selectionControls > p, #optimizationControls p,
+#chartControls, #datasetTransforms p {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    column-gap: var(--group-space);
+    row-gap: var(--wrap-space);
+}
+#generatorSettings, #algorithmSettings, #selectionInfo {
+    display: contents;
 }
 
 /* --- Buttons -------------------------------------------------------------- */
 .button {
-    display: inline-block; /* labels take up their padding like buttons do */
-    vertical-align: top; /* the same place in a row whatever sits beside */
+    display: inline-block;
+    vertical-align: top;
     appearance: none;
     border: 1px solid currentColor;
     background: none;
@@ -197,7 +172,7 @@ button, input, select, .button {
     cursor: pointer;
 }
 .button[hidden] {
-    display: none; /* which display: inline-block would otherwise override */
+    display: none;
 }
 .button:not([hidden]) ~ .button {
     margin-left: var(--row-space);
@@ -210,21 +185,15 @@ button, input, select, .button {
 .field {
     display: inline-flex;
     flex-direction: column;
-    margin-right: var(--group-space);
     vertical-align: bottom;
 }
 .field[hidden], .fieldValue [hidden] {
     display: none;
 }
-.field:last-child {
-    margin-right: 0;
-}
-
 .fieldName {
     font-size: var(--name-size);
     color: var(--dark-grey);
 }
-
 .fieldValue {
     font-family: var(--control-font);
     font-size: var(--control-size);
@@ -247,14 +216,10 @@ button, input, select, .button {
     background: none;
     padding: 0;
 }
-
-/* the space around a size's × */
-.times {
+.times { /* the space around a size's × */
     margin: 0 var(--symbol-space);
 }
-
-/* size each input to an invisible copy of its text in the same grid cell */
-.fit {
+.fit { /* size each input to an invisible copy of its text */
     display: inline-grid;
 }
 .fit::after {
@@ -282,9 +247,7 @@ button, input, select, .button {
     color: CanvasText;
     cursor: default;
 }
-
-/* the = / ∼ switch between a fixed value and a random range */
-.relation {
+.relation { /* the = / ∼ switch between a fixed value and a random range */
     margin-right: var(--symbol-space);
     font: inherit;
 }
@@ -324,10 +287,8 @@ button, input, select, .button {
 #objectives .representation {
     grid-column: 5;
     margin-left: var(--group-space);
-    position: relative; /* anchors its name, the Representation above it */
+    position: relative;
 }
-/* the value and an invisible copy of the absolute name share a cell, so
-   the column is as wide as the wider of the two */
 #objectives .representation .fieldValue {
     display: inline-grid;
 }
@@ -341,7 +302,6 @@ button, input, select, .button {
     white-space: pre;
     font-size: var(--name-size);
 }
-/* the names of the editable values, grey above them like the other fields */
 #objectives .tokenLabel {
     position: absolute;
     bottom: 100%;
@@ -382,14 +342,11 @@ button, input, select, .button {
 #transformGraph .nodeRemove:hover {
     fill: var(--dark-orange);
 }
-/* the graph cannot change while a selection runs */
 #datasetTransforms.running .nodeAdd,
-#datasetTransforms.running .nodeRemove {
+#datasetTransforms.running .nodeRemove { /* disabled while a selection runs */
     visibility: hidden;
 }
-
-/* typeset part of the loss with invisible dropdown */
-.math {
+.math { /* typeset part of the loss with invisible dropdown */
     position: relative;
     display: inline-block; /* has a size to watch for when its font loads */
 }
@@ -398,19 +355,16 @@ button, input, select, .button {
     opacity: 0;
     cursor: pointer;
 }
-
 .math .chooser.open {
-    opacity: 1; /* a number shown while it is typed */
-    background: Canvas; /* covering the value it edits */
+    opacity: 1;
+    background: Canvas; /* covers the value being edited */
     text-align: center;
-    min-width: 3ch; /* room to type, over the term, until it is entered */
+    min-width: 3ch; /* the space to type */
 }
 .running .chooser {
-    display: none; /* nothing to choose while a selection runs */
+    display: none; /* disabled while a selection runs */
 }
-
-/* removing a term, an orange × that is not part of the loss */
-.remove {
+.remove { /* an orange × for removing a term */
     grid-column: 6;
     margin-left: var(--row-space);
     font-size: var(--remove-size);
@@ -422,23 +376,17 @@ button, input, select, .button {
     color: var(--dark-orange);
 }
 .remove:disabled {
-    visibility: hidden; /* no removing while a selection runs */
+    visibility: hidden; /* disabled while a selection runs */
 }
 
 /* --- Plots ---------------------------------------------------------------- */
-/* on their own lines, not on a text baseline that pads below them */
-#chart svg, #lossChart svg {
+#chart svg, #lossChart svg, #transformGraph svg {
     display: block;
 }
 #plot {
     position: relative;
-    /* the square plot, the loss chart at a quarter of the same width, and
-       the optimization controls share the window height */
-    max-width: calc(75vh - 15rem);
+    max-width: calc(100vh - 15rem);
     margin-inline: auto; /* centred in the column */
-    /* the axis band ends in air, so it pays one row of the section gap,
-       keeping the visible gap to the next heading on the rhythm */
-    margin-bottom: calc(-1 * var(--row-space));
 }
 .axisField {
     position: absolute;
@@ -454,32 +402,4 @@ button, input, select, .button {
 #yAxisField {
     left: 16px;
     transform: translate(-50%, -50%) rotate(-90deg); /* turned to read up */
-}
-
-/* tick values in the page font */
-#chart text, #lossChart text {
-    font-family: var(--page-font);
-    font-size: var(--tick-size);
-}
-#lossChart .axisLabel {
-    font-family: var(--control-font);
-    font-size: var(--control-size);
-    fill: currentColor;
-}
-
-#chart svg, #lossChart svg {
-    display: block;
-}
-#chart circle {
-    opacity: 0.4;
-    fill: var(--green);
-}
-#chart circle.selected {
-    opacity: 1;
-    fill: var(--dark-green);
-}
-#lossChart .best {
-    fill: none;
-    stroke: var(--orange);
-    stroke-width: 2;
 }

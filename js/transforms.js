@@ -266,7 +266,7 @@ function showGraph() {
     const y = place => margin.top + place.x - low;
     const width = margin.left + root.height * columnGap + 2 * radius + 110;
     const height = margin.top + Math.max(...places.map(place => place.x))
-        - low + radius + 24;
+        - low + radius + 8;
 
     const svg = d3.create("svg").attr("width", width).attr("height", height);
     for (const place of places.slice(1)) {

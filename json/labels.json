@@ -30,5 +30,6 @@
     "order": "Order",
     "quantile": "Quantile",
     "kmeans": "K-Means",
-    "representation": "On"
+    "representation": "On",
+    "ClusterCenters": "Cluster Centers"
 }

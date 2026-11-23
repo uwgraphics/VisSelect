@@ -1,0 +1,15 @@
+/* The color palette shared by the web application and the paper figures:
+   chart and page colors resolve through these variables, so a change here
+   reaches everything */
+:root {
+    --green: #8dd3c7;
+    --dark-green: #338477;
+    --orange: #fb8072;
+    --dark-orange: #e0503f;
+    --yellow: #fdb462;
+    --blue: #8dadd3;
+    --dark-blue: #3a6ea5;
+    --grey: #eff0f2;
+    --light-grey: #f3f7f7; /* the title band, from the personal site */
+    --dark-grey: #676767;
+}

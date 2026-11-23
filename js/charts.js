@@ -26,6 +26,14 @@ let elapsed = 0; // the seconds the selection has run so far
 
 let drawPending = false; // whether a redraw is already waiting for a frame
 
+// the charts styles
+const styling = {
+    font: "var(--page-font)",
+    tickSize: "var(--tick-size)",
+    labelFont: "var(--control-font)",
+    labelSize: "var(--control-size)",
+};
+
 /**
  * Set up the feature dropdowns on the scatterplot's axes and redraw the
  * charts whenever their space on the page changes size
@@ -188,48 +196,14 @@ export function clearLossChart() {
  */
 function drawScatterplot(data, xIndex, yIndex, subset) {
     const width = chart.clientWidth;
-    const height = width;
-    // room on the left and bottom for the tick values and feature dropdowns
-    const margin = {top: 20, right: 20, bottom: 60, left: 75};
-    const xValues = data[xIndex];
-    const yValues = data[yIndex];
-
-    const x = d3.scaleLinear()
-        .domain(d3.extent(xValues)).nice()
-        .range([margin.left, width - margin.right]);
-
-    const y = d3.scaleLinear()
-        .domain(d3.extent(yValues)).nice()
-        .range([height - margin.bottom, margin.top]);
-
-    const svg = d3.create("svg")
-        .attr("width", width)
-        .attr("height", height);
-
-    svg.append("g")
-        .attr("transform", `translate(0,${height - margin.bottom})`)
-        .call(d3.axisBottom(x));
-
-    svg.append("g")
-        .attr("transform", `translate(${margin.left},0)`)
-        .call(d3.axisLeft(y));
+    const margin = plots.defaults.margin;
 
     // the feature dropdowns centred along their axes, as axis names
     xAxisField.style.left = `${(margin.left + width - margin.right) / 2}px`;
-    yAxisField.style.top = `${(margin.top + height - margin.bottom) / 2}px`;
+    yAxisField.style.top = `${(margin.top + width - margin.bottom) / 2}px`;
 
-    svg.append("g")
-        .selectAll("circle")
-        .data(d3.range(xValues.length))
-        .join("circle")
-        .attr("cx", i => x(xValues[i]))
-        .attr("cy", i => y(yValues[i]))
-        .attr("r", 4)
-        .classed("selected", i => subset.has(i))
-        .filter(i => subset.has(i))
-        .raise(); // draw the subset over the rest of the dataset
-
-    chart.replaceChildren(svg.node());
+    chart.replaceChildren(plots.scatterplot(data[xIndex], data[yIndex],
+        {...styling, width, marked: subset}));
 }
 
 /**
@@ -238,11 +212,9 @@ function drawScatterplot(data, xIndex, yIndex, subset) {
  */
 function drawLossChart() {
     const width = lossChart.clientWidth;
-    const height = Math.round(width * 0.25); // four times as wide as tall
-    // room on the left and bottom for the tick values and axis names
-    const margin = {top: 20, right: 20, bottom: 60, left: 75};
 
-    // the x axis counts evaluations or seconds, as toggled on the axis
+    // the x axis counts evaluations or seconds, as toggled on the axis;
+    // whole evaluations, while seconds keep their decimals
     const timed = lossXAxis.value === "time";
     const along = timed ? point => point[1] : point => point[0];
     const span = timed ? elapsed : evaluations;
@@ -254,63 +226,13 @@ function drawLossChart() {
            [span, last[2]]]
         : [];
 
-    // evaluation counts get long, so about one tick per 80 pixels, on an axis
-    // from 0 rounded out to a whole tick so there is always one at each end
-    const xTicks = Math.max(2, Math.floor(
-        (width - margin.left - margin.right) / 80));
-    const x = d3.scaleLinear()
-        .domain([0, span > 0 ? span : 1])
-        .range([margin.left, width - margin.right])
-        .nice(xTicks);
-
-    // about one tick per 40 pixels of height, rounded out to a tick at each end
-    const yTicks = Math.max(2, Math.floor(
-        (height - margin.top - margin.bottom) / 40));
-    const y = d3.scaleLinear()
-        .domain(points.length ? d3.extent(points, p => p[1]) : [0, 1])
-        .range([height - margin.bottom, margin.top])
-        .nice(yTicks);
-
-    const line = d3.line()
-        .x(p => x(p[0]))
-        .y(p => y(p[1]))
-        .curve(d3.curveStepAfter);
-
-    const svg = d3.create("svg")
-        .attr("width", width)
-        .attr("height", height);
-
-    // only whole evaluations, written short with SI prefixes such as 10k;
-    // seconds keep their decimals
-    const xAxis = d3.axisBottom(x);
-    if (timed) xAxis.ticks(xTicks);
-    else xAxis.tickValues(x.ticks(xTicks).filter(Number.isInteger))
-        .tickFormat(d3.format("~s"));
-    svg.append("g")
-        .attr("transform", `translate(0,${height - margin.bottom})`)
-        .call(xAxis);
-
-    svg.append("g")
-        .attr("transform", `translate(${margin.left},0)`)
-        .call(d3.axisLeft(y).ticks(yTicks));
-
-    // the y axis name along the axis; the x axis name is the toggle,
+    // the y axis name goes along the axis; the x axis name is the toggle,
     // centred below the axis like the scatterplot's feature dropdowns
+    const margin = plots.defaults.margin;
     lossXAxisField.style.left =
         `${(margin.left + width - margin.right) / 2}px`;
     lossXAxisField.hidden = false;
 
-    const middle = (margin.top + height - margin.bottom) / 2;
-    svg.append("text")
-        .attr("class", "axisLabel")
-        .attr("transform", `translate(16,${middle}) rotate(-90)`)
-        .attr("dominant-baseline", "middle")
-        .attr("text-anchor", "middle")
-        .text("Loss");
-
-    svg.append("path") // the best loss found so far
-        .attr("d", line(points))
-        .attr("class", "best");
-
-    lossChart.replaceChildren(svg.node());
+    lossChart.replaceChildren(plots.lossChart(points,
+        {...styling, width, span, wholeTicks: !timed, yLabel: "Loss"}));
 }

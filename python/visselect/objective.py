@@ -5,6 +5,7 @@ from typing import Callable
 
 # third party
 import numpy as np
+from scipy.cluster.vq import kmeans2
 from scipy.spatial import KDTree
 from scipy.spatial.distance import cdist
 
@@ -204,3 +205,73 @@ class Outliers:
         reachability = np.maximum(distances[:, -1][neighbors], distances)
         density = k / np.sum(reachability, axis=1) # local reachability
         return np.sum(density[neighbors], axis=1) / k / density
+
+
+# --- Cluster Centers Objective ------------------------------------------------
+
+class ClusterCenters:
+    """
+    Minimize the distance from each cluster center of the dataset to the
+    item of the subset nearest to it
+    """
+
+    def __init__(
+        self,
+        k: int = 5,
+        seed: int | None = None,
+        representation: str = "data"
+    ) -> None:
+        """
+        Initialize a cluster centers objective
+
+        Args:
+            k: The number of cluster centers the subset represents
+            seed: The random seed for reproducibility
+            representation: The name of the representation evaluated, or
+                "data" for the data itself
+
+        Raises:
+            ValueError: If k is less than 1
+        """
+        if k < 1:
+            raise ValueError("k is less than 1")
+        self._k = k
+        self._seed = seed
+        self._representation = representation
+
+    def __call__(
+        self,
+        subset: Subset
+    ) -> float:
+        """
+        Compute the sum of the distances from each cluster center to the
+        item of the subset nearest to it
+
+        Args:
+            subset: The subset to evaluate as cluster representatives
+
+        Raises:
+            ValueError: If the dataset does not have more items than k
+        """
+        centers = subset.dataset.evaluate(self._centers, self._representation)
+        data = subset[self._representation]
+        return cdist(centers, data).min(axis=1).sum()
+
+    def _centers(self, data: np.ndarray) -> np.ndarray:
+        """
+        Computes the k-means cluster centers of the items, from a k-means++
+        start so no cluster starts empty
+
+        Args:
+            data: The data array of the dataset
+
+        Raises:
+            ValueError: If the number of items is not more than k
+        """
+        if data.shape[0] <= self._k:
+            raise ValueError("k is ≥ the number of items")
+
+        centers, _ = kmeans2(
+            data.astype(float), self._k, minit="++", seed=self._seed
+        )
+        return centers
