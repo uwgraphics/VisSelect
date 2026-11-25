@@ -68,6 +68,12 @@ class TestPreserve(ObjectiveTestCase):
         with self.assertRaises(TypeError):
             objective.Preserve("mean")
 
+    def testEncodeUnsupported(self):
+        """Test that encoding a metric without an encoding raises the name"""
+        preserve = objective.Preserve(metric.variance)
+        with self.assertRaisesRegex(ValueError, "variance"):
+            preserve.encode(None, None, self.dataset, 2)
+
 class TestDistinctness(ObjectiveTestCase):
     """
     Test the distinctness objective class

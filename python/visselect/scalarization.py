@@ -1,7 +1,7 @@
 # --- Imports ------------------------------------------------------------------
 
 # standard library
-from typing import Sequence, SupportsFloat
+from typing import Any, Sequence, SupportsFloat
 
 # third party
 import numpy as np
@@ -54,7 +54,28 @@ class WeightedSum:
             raise ValueError("Lengths of weights and objectives vectors differ")
         
         return self._weights @ vector
-    
+
+    def encode(
+        self,
+        expressions: Sequence[Any],
+    ) -> Any:
+        """
+        Encode the linear scalarization of the objectives' MIP expressions
+
+        Args:
+            expressions: The objectives' MIP expressions to combine
+
+        Raises:
+            ValueError: If objectives and weights vectors lengths differ
+        """
+        if self._weights is None:
+            return sum(expressions)
+        if len(self._weights) != len(expressions):
+            raise ValueError("Lengths of weights and objectives vectors differ")
+
+        return sum(weight * expression for weight, expression
+                   in zip(self._weights, expressions))
+
     @property
     def weights(self) -> np.ndarray | None:
         """

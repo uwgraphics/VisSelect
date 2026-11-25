@@ -1,12 +1,13 @@
 # --- Imports ------------------------------------------------------------------
 
 # standard library
-from typing import Callable, Sequence
+from typing import Any, Callable, Sequence
 
 # third party
 import numpy as np
 
 # local files
+from .dataset import Dataset
 from .subset import Subset
 from .scalarization import WeightedSum
 
@@ -58,7 +59,38 @@ class Loss:
             subset: The subset to evaluate the loss on
         """
         return self._scalarization(self.vector(subset))
-    
+
+    def encode(
+        self,
+        model: Any,
+        z: Any,
+        dataset: Dataset,
+        size: int
+    ) -> Any:
+        """
+        Encode the loss as the scalarization of the objectives' MIP expressions
+
+        Args:
+            model: The MIP model to encode the loss into
+            z: The subset decision variables, one binary per dataset item
+            dataset: The dataset to apply subset selection to
+            size: The size of the subset to select
+
+        Raises:
+            ValueError: If any objective has no encoding
+        """
+        noEncoding = []
+        encoding = []
+        for objective in self._objectives:
+            if not hasattr(objective, "encode"):
+                noEncoding.append(getattr(objective, "__name__", type(objective).__name__))
+            else: 
+                encoding.append(objective.encode(model, z, dataset, size))
+        if noEncoding:
+            raise ValueError(f"No encoding for {', '.join(noEncoding)}")
+
+        return self._scalarization.encode(encoding)
+
     def __len__(self) -> int:
         """
         Compute the length as the number of objectives in the set

@@ -14,6 +14,7 @@ dependencies = ["numpy", "scipy"]
 
 [project.optional-dependencies]
 test = ["pandas", "coverage"]
+exact = ["gurobipy"]
 
 [[project.authors]]
 name = "Connor Bailey"
@@ -28,3 +29,9 @@ where = ["python"]
 [tool.coverage.run]
 source = ["python/visselect"]
 branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+]

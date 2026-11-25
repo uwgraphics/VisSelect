@@ -1,7 +1,7 @@
 # --- Imports ------------------------------------------------------------------
 
 # standard library
-from typing import Callable
+from typing import Any, Callable
 
 # third party
 import numpy as np
@@ -10,6 +10,8 @@ from scipy.spatial import KDTree
 from scipy.spatial.distance import cdist
 
 # local files
+from . import metric
+from .dataset import Dataset
 from .subset import Subset
 
 
@@ -65,6 +67,38 @@ class Preserve:
 
         # Otherwise, use np.linalg.norm for array-like metric results
         return np.linalg.norm(datasetMetric - subsetMetric, ord=self._p)
+
+    def encode(
+        self,
+        model: Any,
+        z: Any,
+        dataset: Dataset,
+        size: int
+    ) -> Any:
+        """
+        Encode the objective as a MIP expression of z
+
+        Args:
+            model: The MIP model to encode the objective into
+            z: The subset decision variables, one binary per dataset item
+            dataset: The dataset to apply subset selection to
+            size: The size of the subset to select
+
+        Raises:
+            ValueError: If the metric or norm order has no MIP encoding
+        """
+        if self._metric is not metric.mean or self._p != 1:
+            raise ValueError(f"No encoding for metric {self._metric.__name__}")
+
+        data = dataset[self._representation]
+        datasetMetric = dataset.evaluate(self._metric, self._representation)
+        subsetMetric = (data.T @ z) / size # constant size fixed
+
+        # per-feature absolute differences linearized with nonnegative t
+        t = model.addMVar(data.shape[1])
+        model.addConstr(t >= subsetMetric - datasetMetric)
+        model.addConstr(t >= datasetMetric - subsetMetric)
+        return t.sum()
 
 
 # --- Distinctness Objective ---------------------------------------------------

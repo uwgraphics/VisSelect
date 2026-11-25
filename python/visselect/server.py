@@ -10,7 +10,7 @@ import threading
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Iterator, Literal, get_args, get_origin
+from typing import Literal, get_args, get_origin
 from urllib.parse import parse_qs, urlparse
 
 # third party
@@ -237,51 +237,53 @@ class Server(ThreadingHTTPServer):
 
         entry = self.catalog["algorithms"][request["algorithm"]]
         method = entry["constructor"](**request["settings"])
-        steps = Solver(method).steps(problem)
+        solver = Solver(method)
 
         with self.starting:
             if self.worker is not None and self.worker.is_alive():
                 raise ValueError("A selection is already running")
             self.stopping.clear()
             self.worker = threading.Thread(
-                target=self.run, args=(steps,), daemon=True
+                target=self.run, args=(solver, problem), daemon=True
             )
             self.worker.start()
 
         return {"started": True}
 
-    def run(self, steps: Iterator[Results]) -> None:
+    def run(self, solver: Solver, problem: Problem) -> None:
         """
-        Run the steps of a selection in the worker thread until it finishes or
-        is stopped, then publish its outcome, or its error if it fails
+        Run a selection in the worker thread until it finishes or is stopped,
+        then publish its outcome, or its error if it fails
         """
         best = None # the frozen subset last published, replaced on improvement
-        stopped = False
+        improved = None
+        evaluation = 0
+
+        def callback(results: Results) -> bool:
+            nonlocal best, improved, evaluation
+            evaluation += 1
+            if results.subset is not best:
+                best = results.subset
+                improved = {
+                    "status": "improved",
+                    "evaluation": evaluation,
+                    "total": results.total,
+                    "time": results.time,
+                    "loss": results.loss,
+                    "subset": np.flatnonzero(best.indicator).tolist()
+                }
+                self.publish(improved)
+            return not self.stopping.is_set()
+
         try:
-            for evaluation, results in enumerate(steps, start=1):
-                if results.subset is not best:
-                    best = results.subset
-                    improved = {
-                        "status": "improved",
-                        "evaluation": evaluation,
-                        "total": results.total,
-                        "time": results.time,
-                        "loss": results.loss,
-                        "subset": np.flatnonzero(best.indicator).tolist()
-                    }
-                    self.publish(improved)
-                if self.stopping.is_set():
-                    steps.close()
-                    stopped = True
-                    break
+            results = solver(problem, callback=callback)
         except Exception as e:
             self.publish({"status": "failed", "error": str(e)})
             return
 
         # the best loss and subset are those of the last improvement
-        status = "stopped" if stopped else "finished"
         ended = {
-            "status": status,
+            "status": results.status,
             "evaluation": evaluation,
             "time": results.time
         }

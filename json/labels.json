@@ -31,5 +31,6 @@
     "quantile": "Quantile",
     "kmeans": "K-Means",
     "representation": "On",
-    "ClusterCenters": "Cluster Centers"
+    "ClusterCenters": "Cluster Centers",
+    "tolerance": "Tolerance"
 }

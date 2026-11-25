@@ -46,12 +46,20 @@ class TestSolver(unittest.TestCase):
         self.assertEqual(unlogged.losses, [])
         self.assertEqual(unlogged._loss, logged._loss)
 
+    def testTimes(self):
+        """Test that logged times accumulate, one nondecreasing time per step"""
+        results = Solver(Random(samples=20, seed=0))(self.problem)
+        self.assertEqual(len(results._times), 20)
+        self.assertGreater(results._times[0], 0.0)
+        self.assertTrue(all(a <= b for a, b in zip(results._times,
+                                                   results._times[1:])))
+        self.assertGreaterEqual(results.time, results._times[-1])
+
     def testStop(self):
-        """Test that closing the steps early keeps the results so far"""
-        steps = Solver(Random(samples=20, seed=0)).steps(self.problem)
-        next(steps)
-        results = next(steps)
-        steps.close()
+        """Test that stopping from the step callback keeps the results so far"""
+        results = Solver(Random(samples=20, seed=0))(
+            self.problem, callback=lambda results: len(results.losses) < 2
+        )
         self.assertEqual(len(results.losses), 2)
         self.assertEqual(results._status, "stopped")
 

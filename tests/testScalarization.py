@@ -58,5 +58,11 @@ class TestWeightedSum(ScalarizationTestCase):
         with self.assertRaises(ValueError):
             linear(self.vector)
 
+    def testEncodeDifferentLengths(self):
+        """Test weights and expressions of differing lengths raise encoding"""
+        linear = scalarization.WeightedSum([1.0])
+        with self.assertRaises(ValueError):
+            linear.encode([2.0, 3.0])
+
 if __name__ == "__main__":
     unittest.main()
