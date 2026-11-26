@@ -16,7 +16,6 @@
     "skewInterval": "Skewness",
     "modesInterval": "Mode",
     "categoriesInterval": "Categories",
-    "GreedySwap": "Greedy",
     "samples": "Samples",
     "metric": "Metric",
     "WeightedSum": "Weighted Sum",

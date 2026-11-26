@@ -20,6 +20,7 @@ const plots = {
         lineWidth: 2,
         itemWidth: 1, // of each item's line across the parallel axes
         markedWidth: 2, // of the marked items' lines
+        shared: true, // one scale across the parallel axes, or one each
     },
 
     /**
@@ -75,9 +76,10 @@ const plots = {
     },
 
     /**
-     * Draw a parallel coordinates chart of every feature on its own axis,
-     * half as tall as wide unless the spec sets a height, with the lines
-     * of the marked items drawn solid over the faded rest
+     * Draw a parallel coordinates chart of every feature on an axis, on one
+     * shared scale written on the leftmost axis, or on its own scale when
+     * shared is off; half as tall as wide unless the spec sets a height,
+     * with the lines of the marked items drawn solid over the faded rest
      * @param {number[][]} data The dataset as one array of values per feature
      * @param {object} spec The width, and any defaults overridden, with
      *     features for the axis names and the indices of the items to mark
@@ -85,24 +87,33 @@ const plots = {
      * @returns {SVGElement} The drawn chart
      */
     parallelCoordinates(data, spec = {}) {
-        // the shared left margin fits a scatterplot y axis and its name;
-        // here the first axis only needs room for its own tick values
         spec = {...this.defaults,
                 margin: {...this.defaults.margin, left: 35}, ...spec};
-        const {width, margin} = spec;
+        const {width} = spec;
         const height = spec.height ?? Math.round(width * 0.5);
         const marked = new Set(spec.marked ?? []);
         const names = spec.features ?? data.map((_, i) => String(i));
+        const longest = Math.max(...names.map(name => name.length));
+        const margin = {...spec.margin,
+                        bottom: Math.max(spec.margin.bottom, longest * 10 + 16)};
 
-        // evenly spaced axes, each feature on its own vertical scale
         const x = d3.scalePoint()
             .domain(d3.range(data.length))
             .range([margin.left, width - margin.right]);
         const yTicks = Math.max(2, Math.floor(
             (height - margin.top - margin.bottom) / 40));
-        const ys = data.map(values => d3.scaleLinear()
-            .domain(d3.extent(values)).nice(yTicks)
-            .range([height - margin.bottom, margin.top]));
+        const range = [height - margin.bottom, margin.top];
+        let ys;
+        if (spec.shared) {
+            const y = d3.scaleLinear()
+                .domain(d3.extent(data.flat())).nice(yTicks)
+                .range(range);
+            ys = data.map(() => y);
+        } else {
+            ys = data.map(values => d3.scaleLinear()
+                .domain(d3.extent(values)).nice(yTicks)
+                .range(range));
+        }
 
         const svg = d3.create("svg")
             .attr("width", width)
@@ -130,17 +141,19 @@ const plots = {
             .filter(item => marked.has(item))
             .raise(); // draw the marked items over the rest
 
-        // the axes over the lines so their tick values stay readable,
-        // named below like the scatterplot's axis dropdowns
         for (const [feature, y] of ys.entries()) {
+            const axis = spec.shared && feature > 0
+                ? d3.axisLeft(y).ticks(yTicks).tickFormat(() => "")
+                : d3.axisLeft(y).ticks(yTicks);
             svg.append("g")
                 .attr("transform", `translate(${x(feature)},0)`)
-                .call(d3.axisLeft(y).ticks(yTicks)).call(ticks);
+                .call(axis).call(ticks);
             svg.append("text")
                 .attr("class", "axisLabel")
-                .attr("x", x(feature))
-                .attr("y", height - margin.bottom + 24)
-                .attr("text-anchor", "middle")
+                .attr("transform", `translate(${x(feature)},` +
+                    `${height - margin.bottom + 10}) rotate(-90)`)
+                .attr("text-anchor", "end")
+                .attr("dominant-baseline", "middle")
                 .style("font-family", spec.labelFont)
                 .style("font-size", spec.labelSize)
                 .style("fill", "currentColor")

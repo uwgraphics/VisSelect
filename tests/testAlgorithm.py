@@ -23,7 +23,7 @@ from visselect import (
     objective, 
     scalarization
 )
-from visselect.algorithm import GreedySwap, Gurobi, Random
+from visselect.algorithm import Annealing, Genetic, Greedy, Gurobi, Random
 
 # optional dependencies
 try:
@@ -106,7 +106,7 @@ class TestRandomSelection(AlgorithmTestCase):
         subset, frozen = seen[0]
         self.assertFalse(np.array_equal(subset._indicator, frozen._indicator))
 
-class TestGreedySwap(AlgorithmTestCase):
+class TestGreedy(AlgorithmTestCase):
     """
     Test the greedy swap algorithm
     """
@@ -119,12 +119,12 @@ class TestGreedySwap(AlgorithmTestCase):
             self.assertEqual(loss, float(self.problem.loss(subset)))
             losses.append(loss)
             return True
-        GreedySwap(seed=0)(self.problem, check)
+        Greedy(seed=0)(self.problem, check)
         self.assertEqual(len(losses), 1 + (20 - 5) * 5)
 
     def testDeclaredEvaluations(self):
         """Test that the declared evaluations match a run's actual count"""
-        algorithm = GreedySwap(seed=0)
+        algorithm = Greedy(seed=0)
         losses = []
         algorithm(self.problem, lambda _, loss: losses.append(loss) or True)
         self.assertEqual(algorithm.evaluations(self.problem), len(losses))
@@ -133,7 +133,7 @@ class TestGreedySwap(AlgorithmTestCase):
         """Test that trying every swap finds the best size one subset exactly"""
         dataset = Dataset(np.array([[0.0], [1.0], [10.0]]))
         problem = Problem(dataset, self.loss, size=1)
-        results = Solver(GreedySwap(seed=0))(problem)
+        results = Solver(Greedy(seed=0))(problem)
         # the item closest to the mean of 11/3 is item 1, with loss 8/3
         np.testing.assert_array_equal(results.subset.indicator,
                                       [False, True, False])
@@ -143,12 +143,12 @@ class TestGreedySwap(AlgorithmTestCase):
         """Test that the result is no worse than the random starting subset"""
         start = []
         Random(seed=0)(self.problem, lambda _, loss: start.append(loss) or True)
-        greedy = Solver(GreedySwap(seed=0))(self.problem)
+        greedy = Solver(Greedy(seed=0))(self.problem)
         self.assertLessEqual(greedy._loss, start[0])
 
     def testSeed(self):
         """Test that a seed reproduces a run"""
-        algorithm = GreedySwap(seed=3)
+        algorithm = Greedy(seed=3)
         first, repeat = [], []
         algorithm(self.problem, lambda _, loss: first.append(loss) or True)
         algorithm(self.problem, lambda _, loss: repeat.append(loss) or True)
@@ -158,11 +158,113 @@ class TestGreedySwap(AlgorithmTestCase):
         """Test that the run ends as soon as the callback returns False"""
         for limit in (1, 3): # stop on the start subset, then inside a swap
             losses = []
-            GreedySwap(seed=0)(
+            Greedy(seed=0)(
                 self.problem,
                 lambda _, loss: losses.append(loss) or len(losses) < limit
             )
             self.assertEqual(len(losses), limit)
+
+class TestAnnealing(AlgorithmTestCase):
+    """
+    Test the simulated annealing algorithm
+    """
+
+    def testBoundaries(self):
+        """Test that a cooling share outside 0 to 1 raises a ValueError"""
+        for cooling in (0.0, 1.0, 1.5):
+            with self.assertRaises(ValueError):
+                Annealing(cooling=cooling)
+
+    def testDeclaredEvaluations(self):
+        """Test that the declared evaluations match a run's actual count"""
+        algorithm = Annealing(cooling=0.5, seed=0)
+        losses = []
+        algorithm(self.problem, lambda _, loss: losses.append(loss) or True)
+        self.assertEqual(algorithm.evaluations(self.problem), len(losses))
+
+    def testScales(self):
+        """Test that the temperature schedule scales with the problem size"""
+        algorithm = Annealing(cooling=0.5)
+        double = Problem(Dataset(np.zeros((40, 3))), self.loss, size=5)
+        self.assertGreater(algorithm.evaluations(double),
+                           algorithm.evaluations(self.problem))
+
+    def testSeed(self):
+        """Test that a seed reproduces a run and different seeds differ"""
+        algorithm = Annealing(cooling=0.5, seed=3)
+        first, repeat, other = [], [], []
+        algorithm(self.problem, lambda _, loss: first.append(loss) or True)
+        algorithm(self.problem, lambda _, loss: repeat.append(loss) or True)
+        Annealing(cooling=0.5, seed=4)(
+            self.problem, lambda _, loss: other.append(loss) or True
+        )
+        self.assertEqual(first, repeat)
+        self.assertNotEqual(first, other)
+
+    def testStop(self):
+        """Test that the run ends as soon as the callback returns False"""
+        for limit in (1, 3): # stop on the start subset, then inside a swap
+            losses = []
+            Annealing(cooling=0.5, seed=0)(
+                self.problem,
+                lambda _, loss: losses.append(loss) or len(losses) < limit
+            )
+            self.assertEqual(len(losses), limit)
+
+    def testImproves(self):
+        """Test that the best subset found beats the random starting subset"""
+        results = Solver(Annealing(cooling=0.5, seed=0))(self.problem)
+        self.assertLess(results.loss, results.losses[0])
+        self.assertEqual(len(results.subset), self.problem.size)
+
+class TestGenetic(AlgorithmTestCase):
+    """
+    Test the genetic algorithm
+    """
+
+    def testBoundaries(self):
+        """Test that too few subsets or generations raise a ValueError"""
+        with self.assertRaises(ValueError):
+            Genetic(population=1)
+        with self.assertRaises(ValueError):
+            Genetic(generations=0)
+
+    def testDeclaredEvaluations(self):
+        """Test that the declared evaluations match a run's actual count"""
+        algorithm = Genetic(population=5, generations=3, seed=0)
+        losses = []
+        algorithm(self.problem, lambda _, loss: losses.append(loss) or True)
+        self.assertEqual(algorithm.evaluations, len(losses))
+
+    def testSeed(self):
+        """Test that a seed reproduces a run and different seeds differ"""
+        algorithm = Genetic(population=5, generations=3, seed=3)
+        first, repeat, other = [], [], []
+        algorithm(self.problem, lambda _, loss: first.append(loss) or True)
+        algorithm(self.problem, lambda _, loss: repeat.append(loss) or True)
+        Genetic(population=5, generations=3, seed=4)(
+            self.problem, lambda _, loss: other.append(loss) or True
+        )
+        self.assertEqual(first, repeat)
+        self.assertNotEqual(first, other)
+
+    def testStop(self):
+        """Test that the run ends as soon as the callback returns False"""
+        for limit in (1, 8): # stop in the start population, then on a child
+            losses = []
+            Genetic(population=5, generations=3, seed=0)(
+                self.problem,
+                lambda _, loss: losses.append(loss) or len(losses) < limit
+            )
+            self.assertEqual(len(losses), limit)
+
+    def testImproves(self):
+        """Test that breeding beats the best of the starting population"""
+        results = Solver(Genetic(population=10, generations=20, seed=0))(
+            self.problem
+        )
+        self.assertLess(results.loss, min(results.losses[:10]))
+        self.assertEqual(len(results.subset), self.problem.size)
 
 @unittest.skipUnless(GUROBI, "gurobipy is not installed")
 class TestGurobi(unittest.TestCase):

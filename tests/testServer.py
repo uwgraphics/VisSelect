@@ -13,7 +13,7 @@ from urllib.request import Request, urlopen
 
 # local files
 from visselect import Loss, Problem, Solver, metric, objective, scalarization
-from visselect.algorithm import GreedySwap, Random
+from visselect.algorithm import Greedy, Random
 from visselect.server import Handler, Server, buildCatalog
 
 
@@ -65,7 +65,7 @@ class TestBuildCatalog(unittest.TestCase):
     def testAlgorithms(self):
         """Test that algorithms are found with their settings and defaults"""
         algorithms = self.catalog["algorithms"]
-        self.assertIs(algorithms["GreedySwap"]["constructor"], GreedySwap)
+        self.assertIs(algorithms["Greedy"]["constructor"], Greedy)
         self.assertIs(algorithms["Random"]["constructor"], Random)
         whole = {"choices": None, "integer": True, "pair": False}
         self.assertEqual(algorithms["Random"]["settings"], {
