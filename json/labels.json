@@ -31,5 +31,6 @@
     "kmeans": "K-Means",
     "representation": "On",
     "ClusterCenters": "Cluster Centers",
-    "tolerance": "Tolerance"
+    "tolerance": "Tolerance",
+    "EarthMoversDistance": "Earth Mover's Distance"
 }

@@ -9,6 +9,11 @@ from scipy.cluster.vq import kmeans2
 from scipy.spatial import KDTree
 from scipy.spatial.distance import cdist
 
+try:
+    import ot
+except ImportError:
+    ot = None
+
 # local files
 from . import metric
 from .dataset import Dataset
@@ -216,6 +221,46 @@ class EnergyDistance:
         between = cdist(data, subset.dataset[self._representation]).mean()
         within = cdist(data, data).mean()
         return 2.0 * between - within
+
+
+# --- Earth Mover's Distance Objective -----------------------------------------
+
+class EarthMoversDistance:
+    """
+    Minimize the earth mover's distance between the distributions of the
+    subset and the dataset
+    """
+
+    def __init__(self, representation: str = "data") -> None:
+        """
+        Initialize an earth mover's distance objective
+
+        Args:
+            representation: The name of the representation evaluated, or
+                "data" for the data itself
+
+        Raises:
+            ImportError: if POT is not installed
+        """
+        if ot is None:
+            raise ImportError("EarthMoversDistance requires POT")
+        self._representation = representation
+
+    def __call__(
+        self,
+        subset: Subset
+    ) -> float:
+        """
+        Compute the least total cost of transporting the subset's uniform
+        distribution onto the dataset's, over Euclidean ground distances,
+        with the POT library
+
+        Args:
+            subset: The subset to evaluate the distribution distance of
+        """
+        data = subset[self._representation]
+        dataset = subset.dataset[self._representation]
+        return float(ot.emd2([], [], cdist(data, dataset)))
 
 
 # --- Outliers Objective -------------------------------------------------------

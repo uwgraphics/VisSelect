@@ -1,13 +1,24 @@
 # --- Imports ------------------------------------------------------------------
 
 # standard library
+import importlib
+import sys
 import unittest
+from unittest import mock
 
 # third party
 import numpy as np
+from scipy.stats import wasserstein_distance_nd
 
 # local files
 from visselect import Dataset, Subset, metric, objective
+
+# optional dependencies
+try:
+    import ot
+    POT = True
+except ImportError:
+    POT = False
 
 
 # --- Test Classes -------------------------------------------------------------
@@ -147,6 +158,58 @@ class TestEnergyDistance(unittest.TestCase):
         energy = objective.EnergyDistance()
         self.assertLess(energy(Subset(dataset, both)),
                         energy(Subset(dataset, one)))
+
+
+@unittest.skipUnless(POT, "POT is not installed")
+class TestEarthMoversDistance(unittest.TestCase):
+    """
+    Test the earth mover's distance objective class
+    """
+
+    def testValue(self):
+        """Test the value on a small case computed by hand"""
+        dataset = Dataset(np.array([[0.0], [1.0]]))
+        subset = Subset(dataset, np.array([True, False]))
+        # half the subset's mass moves a distance of 1 to reach the dataset
+        self.assertAlmostEqual(objective.EarthMoversDistance()(subset), 0.5)
+
+    def testPrefersTheDistribution(self):
+        """Test that a subset spanning both clusters scores lower than one
+        drawn from a single cluster"""
+        rng = np.random.default_rng(0)
+        data = rng.normal(0.0, 0.5, size=(100, 2))
+        data[50:] += 10.0 # two clusters, half the items in each
+        dataset = Dataset(data)
+        indices = np.arange(100)
+        both = (indices % 25) == 0 # two items in each cluster
+        one = indices < 4 # four items in the first cluster
+        earthMovers = objective.EarthMoversDistance()
+        self.assertLess(earthMovers(Subset(dataset, both)),
+                        earthMovers(Subset(dataset, one)))
+
+    def testGroundMetric(self):
+        """Test the Euclidean ground metric against SciPy's exact solver"""
+        rng = np.random.default_rng(0)
+        dataset = Dataset(rng.normal(size=(20, 2)))
+        subset = Subset(dataset, np.arange(20) < 5)
+        self.assertAlmostEqual(
+            objective.EarthMoversDistance()(subset),
+            wasserstein_distance_nd(subset["data"], dataset["data"]))
+
+
+class TestPotMissing(unittest.TestCase):
+    """
+    Test the earth mover's distance objective when POT is not installed
+    """
+
+    def testRequiresPot(self):
+        """Test that the module and constructor degrade without POT"""
+        state = dict(vars(objective)) # the original classes, restored so that
+        self.addCleanup(vars(objective).update, state) # identities also hold
+        with mock.patch.dict(sys.modules, {"ot": None}):
+            importlib.reload(objective) # import falls back to ot = None
+            with self.assertRaises(ImportError):
+                objective.EarthMoversDistance()
 
 
 class TestOutliers(unittest.TestCase):
