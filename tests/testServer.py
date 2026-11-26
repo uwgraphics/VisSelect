@@ -152,6 +152,7 @@ class TestServer(unittest.TestCase):
                               "settings": {"size": (20, 2), "seed": 0}})
         reply = self.server.select(self.request)
         self.assertEqual(reply, {"started": True})
+        self.assertIsInstance(self.server.method, Random) # held for stopping
         self.server.worker.join(timeout=10)
         self.assertFalse(self.server.worker.is_alive())
 
@@ -230,6 +231,26 @@ class TestServer(unittest.TestCase):
         self.server.run(Solver(broken), None)
         self.assertEqual(self.messages(),
                          [{"status": "failed", "error": "broken algorithm"}])
+
+    def testStopInterrupts(self):
+        """Test that stop also interrupts an algorithm that supports it"""
+        stops = []
+        class Stoppable:
+            def stop(self):
+                stops.append(True)
+        self.server.method = Stoppable()
+        self.server.stop()
+        self.assertTrue(self.server.stopping.is_set())
+        self.assertEqual(stops, [True])
+
+    def testEndedWithoutImprovements(self):
+        """Test that a selection with no evaluations still publishes its end"""
+        def idle(problem, emit):
+            pass
+        self.server.run(Solver(idle), None)
+        [message] = self.messages()
+        self.assertEqual(message["status"], "finished")
+        self.assertEqual(message["evaluation"], 0)
 
 class TestHandler(unittest.TestCase):
     """

@@ -55,8 +55,8 @@ class Random:
 
         Args:
             problem: The subset selection problem definition to sample from
-            emit: The callback reporting each evaluation, emit(subset, loss);
-                stops the run when it returns False
+            emit: The callback which reports each evaluation and stops the run 
+                when it returns False
         """
         rng = np.random.default_rng(self._seed)
         length = len(problem.dataset)
@@ -111,8 +111,8 @@ class GreedySwap:
 
         Args:
             problem: The subset selection problem definition to solve
-            emit: The callback reporting each evaluation, emit(subset, loss);
-                stops the run when it returns False
+            emit: The callback which reports each evaluation and stops the run 
+                when it returns False
         """
         rng = np.random.default_rng(self._seed)
         length = len(problem.dataset)
@@ -180,8 +180,7 @@ class Gurobi:
         Initialize the Gurobi optimization branch and cut algorithm
 
         Args:
-            tolerance: The loss slack: a subset whose loss is within this of
-                the best provable loss is accepted as optimal
+            tolerance: The tolerance within which a loss is accepted as optimal
             seed: The random seed for reproducibility
 
         Raises:
@@ -194,6 +193,7 @@ class Gurobi:
             raise ValueError("Tolerance is negative")
 
         self._environment = gp.Env(params={"OutputFlag": 0})
+        self._model = None
         self._tolerance = tolerance
         self._seed = seed
 
@@ -210,46 +210,56 @@ class Gurobi:
             problem: The subset selection problem definition to solve
             emit: The callback which reports each evaluation and stops the run 
                 when it returns False
-
-        Raises:
-            RuntimeError: If the algorithm fails to find the subset
         """
 
         with gp.Model(env=self._environment) as model:
-            if self._seed is not None:
-                model.Params.Seed = self._seed
-            model.Params.MIPGapAbs = self._tolerance
+            self._model = model # so stop() can reach the running solve
+            try:
+                if self._seed is not None:
+                    model.Params.Seed = self._seed
+                model.Params.MIPGapAbs = self._tolerance
 
-            z = model.addMVar(len(problem.dataset), vtype=gp.GRB.BINARY)
-            model.addConstr(z.sum() == problem.size)
+                z = model.addMVar(len(problem.dataset), vtype=gp.GRB.BINARY)
+                model.addConstr(z.sum() == problem.size)
 
-            encodedLoss = problem.loss.encode(
-                model = model, 
-                z = z, 
-                dataset = problem.dataset, 
-                size = problem.size
-            )
-            model.setObjective(encodedLoss, gp.GRB.MINIMIZE)
+                encodedLoss = problem.loss.encode(
+                    model = model,
+                    z = z,
+                    dataset = problem.dataset,
+                    size = problem.size
+                )
+                model.setObjective(encodedLoss, gp.GRB.MINIMIZE)
 
-            stopped = False
-            def callback(model, where):
-                nonlocal stopped
-                if where == gp.GRB.Callback.MIPSOL:
-                    values = np.asarray(model.cbGetSolution(z))
-                    subset = Subset(problem.dataset, values > 0.5)
-                    if not emit(subset, float(problem.loss(subset))):
-                        stopped = True
-                        model.terminate()
+                stopped = False
+                def callback(model, where):
+                    nonlocal stopped
+                    if where == gp.GRB.Callback.MIPSOL:
+                        values = np.asarray(model.cbGetSolution(z))
+                        subset = Subset(problem.dataset, values > 0.5)
+                        if not emit(subset, float(problem.loss(subset))):
+                            stopped = True
+                            model.terminate()
 
-            model.optimize(callback)
-            if stopped:
-                return
+                model.optimize(callback)
+                if stopped or model.SolCount == 0:
+                    return # stopped early: any incumbent is already reported
 
-            indicator = z.X > 0.5 # thresholding for tolerance
+                indicator = z.X > 0.5 # thresholding for tolerance
+            finally:
+                self._model = None
 
         # report the final solution: presolve solves may skip the callback
         subset = Subset(problem.dataset, indicator)
         emit(subset, float(problem.loss(subset)))
+
+    def stop(self) -> None:
+        """
+        Stop a solve running on another thread at its next opportunity,
+        keeping the subsets already reported
+        """
+        model = self._model
+        if model is not None:
+            model.terminate() # safe across threads, and after the solve ends
 
     @property
     def seed(self) -> int | None:

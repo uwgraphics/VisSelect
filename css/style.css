@@ -388,6 +388,11 @@ button, input, select, .button {
     max-width: calc(100vh - 15rem);
     margin-inline: auto; /* centred in the column */
 }
+#plot.wide {
+    /* a chart half as tall as it is wide fits the same screen height
+       at twice the width of the square scatterplot */
+    max-width: calc(2 * (100vh - 15rem));
+}
 .axisField {
     position: absolute;
     white-space: nowrap;

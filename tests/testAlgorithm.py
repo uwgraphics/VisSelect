@@ -4,6 +4,7 @@
 import importlib
 import itertools
 import sys
+import threading
 import unittest
 from unittest import mock
 
@@ -218,6 +219,43 @@ class TestGurobi(unittest.TestCase):
         results = Solver(Gurobi(seed=0))(self.problem, callback=lambda _: False)
         self.assertEqual(results._status, "stopped")
         self.assertGreaterEqual(len(results.losses), 1)
+
+    def testStopMidSolve(self):
+        """Test that stop interrupts a grinding solve from another thread"""
+        rng = np.random.default_rng(0)
+        problem = Problem(Dataset(rng.normal(size=(1000, 2))),
+                          Loss([objective.Preserve(metric.mean)]), 10)
+        gurobi = Gurobi(tolerance=0, seed=0) # grinds its zero proof bound
+
+        started = threading.Event()
+        def onStep(results):
+            started.set()
+            return True # the stop arrives from the side, not the callback
+        worker = threading.Thread(target=Solver(gurobi), args=(problem,),
+                                  kwargs={"callback": onStep}, daemon=True)
+        worker.start()
+        self.assertTrue(started.wait(timeout=10)) # the first incumbent
+        gurobi.stop()
+        worker.join(timeout=10)
+        self.assertFalse(worker.is_alive())
+        gurobi.stop() # after the solve, with no model, stop is a no-op
+
+    def testStopBeforeSolve(self):
+        """Test that a stop before optimization begins is safely ignored:
+        gurobi drops a terminate request that arrives before optimize"""
+        gurobi = Gurobi(tolerance=0, seed=0)
+        mean = objective.Preserve(metric.mean)
+        class StopsDuringEncode:
+            """Stops the solve while encoding, before optimization begins"""
+            def __call__(self, subset):
+                return mean(subset)
+            def encode(self, model, z, dataset, size):
+                gurobi.stop()
+                return mean.encode(model, z, dataset, size)
+        problem = Problem(self.dataset, Loss([StopsDuringEncode()]), 3)
+        results = Solver(gurobi)(problem)
+        self.assertEqual(results._status, "finished")
+        self.assertAlmostEqual(results.loss, self.bruteForce(problem))
 
 class TestGurobiMissing(unittest.TestCase):
     """

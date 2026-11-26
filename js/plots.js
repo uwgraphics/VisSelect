@@ -18,6 +18,8 @@ const plots = {
         radius: 4,
         lineColor: "var(--orange)",
         lineWidth: 2,
+        itemWidth: 1, // of each item's line across the parallel axes
+        markedWidth: 2, // of the marked items' lines
     },
 
     /**
@@ -68,6 +70,82 @@ const plots = {
             .style("opacity", i => marked.has(i) ? 1 : spec.fade)
             .filter(i => marked.has(i))
             .raise(); // draw the marked items over the rest
+
+        return svg.node();
+    },
+
+    /**
+     * Draw a parallel coordinates chart of every feature on its own axis,
+     * half as tall as wide unless the spec sets a height, with the lines
+     * of the marked items drawn solid over the faded rest
+     * @param {number[][]} data The dataset as one array of values per feature
+     * @param {object} spec The width, and any defaults overridden, with
+     *     features for the axis names and the indices of the items to mark
+     *     as marked
+     * @returns {SVGElement} The drawn chart
+     */
+    parallelCoordinates(data, spec = {}) {
+        // the shared left margin fits a scatterplot y axis and its name;
+        // here the first axis only needs room for its own tick values
+        spec = {...this.defaults,
+                margin: {...this.defaults.margin, left: 35}, ...spec};
+        const {width, margin} = spec;
+        const height = spec.height ?? Math.round(width * 0.5);
+        const marked = new Set(spec.marked ?? []);
+        const names = spec.features ?? data.map((_, i) => String(i));
+
+        // evenly spaced axes, each feature on its own vertical scale
+        const x = d3.scalePoint()
+            .domain(d3.range(data.length))
+            .range([margin.left, width - margin.right]);
+        const yTicks = Math.max(2, Math.floor(
+            (height - margin.top - margin.bottom) / 40));
+        const ys = data.map(values => d3.scaleLinear()
+            .domain(d3.extent(values)).nice(yTicks)
+            .range([height - margin.bottom, margin.top]));
+
+        const svg = d3.create("svg")
+            .attr("width", width)
+            .attr("height", height);
+        const ticks = group => group.style("font-family", spec.font)
+            .style("font-size", spec.tickSize);
+
+        // one line per item through its value on each feature's axis
+        const line = item => d3.line()
+            .x(feature => x(feature))
+            .y(feature => ys[feature](data[feature][item]))
+            (d3.range(data.length));
+        svg.append("g")
+            .selectAll("path")
+            .data(d3.range(data[0].length))
+            .join("path")
+            .attr("d", line)
+            .classed("selected", item => marked.has(item))
+            .style("fill", "none")
+            .style("stroke", item =>
+                marked.has(item) ? spec.markedColor : spec.color)
+            .style("stroke-width", item =>
+                marked.has(item) ? spec.markedWidth : spec.itemWidth)
+            .style("opacity", item => marked.has(item) ? 1 : spec.fade)
+            .filter(item => marked.has(item))
+            .raise(); // draw the marked items over the rest
+
+        // the axes over the lines so their tick values stay readable,
+        // named below like the scatterplot's axis dropdowns
+        for (const [feature, y] of ys.entries()) {
+            svg.append("g")
+                .attr("transform", `translate(${x(feature)},0)`)
+                .call(d3.axisLeft(y).ticks(yTicks)).call(ticks);
+            svg.append("text")
+                .attr("class", "axisLabel")
+                .attr("x", x(feature))
+                .attr("y", height - margin.bottom + 24)
+                .attr("text-anchor", "middle")
+                .style("font-family", spec.labelFont)
+                .style("font-size", spec.labelSize)
+                .style("fill", "currentColor")
+                .text(names[feature]);
+        }
 
         return svg.node();
     },

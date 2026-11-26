@@ -44,9 +44,11 @@ export function setupCharts() {
     xFeature.addEventListener("change", redraw);
     yFeature.addEventListener("change", redraw);
 
+    fitted(chartType);
+    chartType.addEventListener("change", redraw);
+
     // which representation the chart shows, offered once there is more
     // than one, following the transform tree as it changes
-    fitted(chartType);
     chartOn.append(new Option("data"));
     fitted(chartOn);
     chartOn.addEventListener("change", showRepresentation);
@@ -167,9 +169,18 @@ export function scheduleDraw() {
 }
 
 /**
- * Redraw the scatterplot with the features chosen in the dropdowns
+ * Redraw the chart chosen in the chart dropdown: the scatterplot with the
+ * features chosen on its axes, or the parallel coordinates of every feature
  */
 export function redraw() {
+    const parallel = chartType.value === "Parallel coordinates";
+    xAxisField.hidden = parallel; // every feature is on the chart already
+    yAxisField.hidden = parallel;
+    plot.classList.toggle("wide", parallel); // half as tall, twice as wide
+    if (parallel) {
+        drawParallelCoordinates(data, subset);
+        return;
+    }
     const x = Number(xFeature.value);
     const y = Number(yFeature.value);
     drawScatterplot(data, x, y, subset);
@@ -204,6 +215,25 @@ function drawScatterplot(data, xIndex, yIndex, subset) {
 
     chart.replaceChildren(plots.scatterplot(data[xIndex], data[yIndex],
         {...styling, width, marked: subset}));
+}
+
+/**
+ * Draw a parallel coordinates chart of every feature of the dataset filling
+ * the width of the chart div
+ * @param {number[][]} data The dataset as one array of values per feature
+ * @param {Set<number>} subset The indices of the selected items to mark
+ */
+function drawParallelCoordinates(data, subset) {
+    const width = chart.clientWidth;
+
+    // features named only by their column numbers read as feature names,
+    // matching the scatterplot's axis dropdowns
+    const numbered = features.every((name, i) => name === String(i));
+    const names = numbered
+        ? features.map(name => `Feature ${name}`) : features;
+
+    chart.replaceChildren(plots.parallelCoordinates(data,
+        {...styling, width, marked: subset, features: names}));
 }
 
 /**

@@ -154,6 +154,7 @@ class Server(ThreadingHTTPServer):
         self.catalog = buildCatalog()
 
         self.worker = None # the thread running the latest selection
+        self.method = None # the latest selection's algorithm, for stopping
         self.starting = threading.Lock() # so only one selection runs at a time
         self.stopping = threading.Event() # set to stop the running selection
         self.listeners = [] # a message queue for each page's event stream
@@ -207,9 +208,7 @@ class Server(ThreadingHTTPServer):
         request, in a worker thread that publishes its progress to listeners
 
         Args:
-            request: The objectives with their weights, the scalarization
-                that combines them, the subset size, and the algorithm with
-                its settings, chosen by name
+            request: The objectives, their weights, the scalarization, the subset size, and the algorithm
 
         Raises:
             KeyError: If an objective, algorithm or field is not found
@@ -243,6 +242,7 @@ class Server(ThreadingHTTPServer):
             if self.worker is not None and self.worker.is_alive():
                 raise ValueError("A selection is already running")
             self.stopping.clear()
+            self.method = method
             self.worker = threading.Thread(
                 target=self.run, args=(solver, problem), daemon=True
             )
@@ -281,19 +281,22 @@ class Server(ThreadingHTTPServer):
             self.publish({"status": "failed", "error": str(e)})
             return
 
-        # the best loss and subset are those of the last improvement
         ended = {
-            "status": results.status,
+            "status": "stopped" if self.stopping.is_set() else results.status,
             "evaluation": evaluation,
             "time": results.time
         }
-        self.publish(improved | ended)
+        self.publish(ended if improved is None else improved | ended)
 
     def stop(self) -> None:
         """
-        Stop the running selection after its current evaluation
+        Stop the running selection after its current evaluation, interrupting
+        an algorithm that can be stopped between evaluations
         """
         self.stopping.set()
+        stop = getattr(self.method, "stop", None)
+        if stop is not None:
+            stop()
 
     def publish(self, message: dict) -> None:
         """
