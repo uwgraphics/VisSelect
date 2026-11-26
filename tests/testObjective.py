@@ -87,6 +87,41 @@ class TestDistinctness(ObjectiveTestCase):
 
 
 
+class TestCrossings(unittest.TestCase):
+    """
+    Test the crossings objective class
+    """
+
+    def testCrossing(self):
+        """Test that a crossing pair of lines counts at the full rate"""
+        dataset = Dataset(np.array([[0.0, 1.0], [1.0, 0.0]]))
+        subset = Subset(dataset, np.array([True, True]))
+        self.assertEqual(objective.Crossings()(subset), 1.0)
+
+    def testParallel(self):
+        """Test that parallel lines and ties do not cross"""
+        dataset = Dataset(np.array([[0.0, 0.0], [1.0, 1.0], [2.0, 1.0]]))
+        subset = Subset(dataset, np.array([True, True, True]))
+        self.assertEqual(objective.Crossings()(subset), 0.0)
+
+    def testShare(self):
+        """Test that the rate is the crossing share of all the line pairs"""
+        dataset = Dataset(np.array([[0.0, 0.0], [1.0, 2.0], [2.0, 1.0]]))
+        subset = Subset(dataset, np.array([True, True, True]))
+        self.assertAlmostEqual(objective.Crossings()(subset), 1 / 3)
+
+    def testDegenerate(self):
+        """Test that one item or one feature rates no crossings, not NaN"""
+        dataset = Dataset(np.array([[1.0, 2.0], [3.0, 4.0]]))
+        self.assertEqual(
+            objective.Crossings()(Subset(dataset, np.array([True, False]))),
+            0.0)
+        narrow = Dataset(np.array([[1.0], [2.0]]))
+        self.assertEqual(
+            objective.Crossings()(Subset(narrow, np.array([True, True]))),
+            0.0)
+
+
 class TestEnergyDistance(unittest.TestCase):
     """
     Test the energy distance objective class

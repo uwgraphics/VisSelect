@@ -135,6 +135,53 @@ class Distinctness:
         return -np.sum(np.min(distances, axis=1))
 
 
+# --- Crossings Objective ------------------------------------------------------
+
+class Crossings:
+    """
+    Minimize the rate of line crossings the subset draws between the
+    neighboring axes of a parallel coordinates chart
+    """
+
+    def __init__(self, representation: str = "data") -> None:
+        """
+        Initialize a crossings objective
+
+        Args:
+            representation: The name of the representation evaluated, or
+                "data" for the data itself
+        """
+        self._representation = representation
+
+    def __call__(
+        self,
+        subset: Subset
+    ) -> float:
+        """
+        Compute the share of the subset's line pairs crossing between each
+        pair of neighboring axes: lines cross when the sign of their
+        difference flips from one axis to the next, with ties not crossing
+
+        Args:
+            subset: The subset to evaluate the crossings of
+        """
+        data = subset[self._representation]
+        items, features = data.shape
+        if items < 2 or features < 2: # nothing can cross
+            return 0.0
+
+        crossings = 0
+        for axis in range(features - 1):
+            left = data[:, axis]
+            right = data[:, axis + 1]
+            crossings += np.sum(
+                np.sign(left[:, None] - left[None, :])
+                * np.sign(right[:, None] - right[None, :]) < 0
+            )
+        # both orders of every pair were counted, and so does the divisor
+        return float(crossings / (items * (items - 1) * (features - 1)))
+
+
 # --- Energy Distance Objective ------------------------------------------------
 
 class EnergyDistance:
