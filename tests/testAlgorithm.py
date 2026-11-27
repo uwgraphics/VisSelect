@@ -304,6 +304,26 @@ class TestGurobi(unittest.TestCase):
         results = Solver(Gurobi(tolerance=0))(problem)
         self.assertAlmostEqual(results.loss, self.bruteForce(problem))
 
+    def testChebyshev(self):
+        """Test that a Chebyshev blend solves to the brute force minimum"""
+        loss = Loss(
+            [objective.Preserve(metric.mean), objective.Preserve(metric.mean)],
+            scalarization.Chebyshev([2.0, 0.5])
+        )
+        problem = Problem(self.dataset, loss, size=3)
+        results = Solver(Gurobi(tolerance=0))(problem)
+        self.assertAlmostEqual(results.loss, self.bruteForce(problem))
+
+    def testChebyshevNegative(self):
+        """Test that the Chebyshev bound admits a negative optimum"""
+        with gurobipy.Env(params={"OutputFlag": 0}) as environment, \
+             gurobipy.Model(env=environment) as model:
+            expression = model.addVar(lb=-4.0, ub=-2.0) # a negative loss
+            bound = scalarization.Chebyshev().encode(model, [expression])
+            model.setObjective(bound)
+            model.optimize()
+            self.assertEqual(model.ObjVal, -4.0)
+
     def testNoEncoding(self):
         """Test that every objective without an encoding is named in the error"""
         loss = Loss([objective.Distinctness(), objective.EnergyDistance()])

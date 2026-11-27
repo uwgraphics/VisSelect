@@ -18,7 +18,7 @@ const rowGap = 64; // the space between sibling nodes
 
 let transforms = {}; // each transform's settings, from the catalog
 let onApply = () => {}; // called when a transform changes the data itself
-let nodes = []; // each representation: its name, parent and provenance
+let nodes = []; // the server's tree: each transform's name, parent, lineage
 let dataDetails = []; // the transforms applied over the data itself
 let graph = null; // the div holding the drawn graph, once one is drawn
 let note = null; // the graph's error message
@@ -36,7 +36,11 @@ export function setupTransforms(catalog, applied) {
     onApply = applied;
 
     addTransform.hidden = false;
-    addTransform.addEventListener("click", () => addRow("data"));
+    addTransform.append(...options(Object.keys(transforms)));
+    addTransform.addEventListener("change", () => {
+        addRow("data", addTransform.value);
+        addTransform.selectedIndex = 0;
+    });
     applyTransform.addEventListener("click", apply);
 }
 
@@ -90,8 +94,9 @@ export function setTransformsLocked(running) {
  * Add a row to set up a transform of one representation, taking the place
  * of the graph until it is applied from the heading or removed with its ×
  * @param {string} source The name of the representation the transform reads
+ * @param {string} [type] The transform chosen up front, still changeable
  */
-function addRow(source) {
+function addRow(source, type) {
     const row = document.createElement("p");
     const rowId = nextRowId++;
 
@@ -99,6 +104,7 @@ function addRow(source) {
     choice.className = "editable";
     choice.id = `transform${rowId}`;
     choice.append(...options(Object.keys(transforms)));
+    if (type) choice.value = type;
 
     // the source the + was clicked on, kept in view while the graph is not
     const from = infoField("From", source);
@@ -208,23 +214,42 @@ async function apply() {
         return;
     }
 
-    const parts = Object.entries(values).map(
-        ([setting, value]) => `${label(setting)} ${shown(value)}`);
-    const detail =
-        [label(choice.value), ...parts, `from ${source}`].join(", ");
-    if (name === "data") {
-        nodes = []; // replacing the data fells every representation
-        dataDetails.push(detail);
-    } else {
-        const existing = nodes.find(node => node.name === name);
-        if (existing) existing.details.push(detail);
-        else nodes.push({name, parent: source, details: [detail]});
+    if (name === "data") { // replacing the data fells every transform
+        const parts = Object.entries(values).map(
+            ([setting, value]) => `${label(setting)} ${shown(value)}`);
+        dataDetails.push(
+            [label(choice.value), ...parts, `from ${source}`].join(", "));
     }
+    await refreshTree();
 
     row.remove();
     showGraph();
     announce();
     if (name === "data") onApply(reply);
+}
+
+/**
+ * Rebuild the nodes from the server's tree, the one owner of the stored
+ * transforms and their lineage
+ */
+async function refreshTree() {
+    const response = await fetch("/tree");
+    const tree = await response.json();
+    nodes = tree.map(node =>
+        ({name: node.name, parent: node.parent, details: [detailOf(node)]}));
+}
+
+/**
+ * Write a node's lineage the way an applied row described it
+ * @param {Object} node The node served in the server's tree
+ * @returns {string} The line for the node's tooltip
+ */
+function detailOf(node) {
+    const parts = Object.entries(node.settings)
+        .filter(([, value]) => value !== null)
+        .map(([setting, value]) => `${label(setting)} ${shown(value)}`);
+    const transform = node.transform ? label(node.transform) : "Stored";
+    return [transform, ...parts, `from ${node.parent}`].join(", ");
 }
 
 /**
@@ -315,33 +340,22 @@ function showGraph() {
 }
 
 /**
- * Remove a representation and everything derived from it, felling the
- * node's whole subtree as assigning over a node does, and redraw the
- * graph, or show why it was refused
- * @param {string} name The name of the representation to remove
+ * Remove a transform, the server felling everything derived from it, and
+ * redraw the graph from the server's tree, or show why it was refused
+ * @param {string} name The name of the transform to remove
  */
 async function removeNode(name) {
-    // the node and all its descendants, gathered breadth first
-    const felled = [name];
-    for (const parent of felled) {
-        for (const node of nodes) {
-            if (node.parent === parent) felled.push(node.name);
-        }
+    const response = await fetch("/remove", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({name}),
+    });
+    if (!response.ok) {
+        const reply = await response.json();
+        note.textContent = `Could not remove: ${reply.error}`;
+        return;
     }
-
-    for (const target of felled) {
-        const response = await fetch("/remove", {
-            method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({name: target}),
-        });
-        if (!response.ok) {
-            const reply = await response.json();
-            note.textContent = `Could not remove: ${reply.error}`;
-            break;
-        }
-        nodes = nodes.filter(node => node.name !== target);
-    }
+    await refreshTree();
     showGraph();
     announce();
 }

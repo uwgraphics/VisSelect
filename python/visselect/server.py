@@ -68,7 +68,6 @@ def buildCatalog() -> dict[str, dict[str, dict]]:
         "generators": (generate, inspect.isfunction),
         "metrics": (metric, inspect.isfunction),
         "scalarizations": (scalarization, inspect.isclass),
-        "transforms": (transform, inspect.isfunction),
     }
     sections = {}
     for section, (module, kind) in kinds.items():
@@ -77,6 +76,12 @@ def buildCatalog() -> dict[str, dict[str, dict]]:
             if member.__module__ == module.__name__ # defined, not imported
             and not name.startswith("_")
         }
+
+    # the transform methods of a node, named apart from the tree machinery
+    sections["transforms"] = {
+        name: getattr(transform.Transform, name)
+        for name in ("scale", "discretize", "encode")
+    }
 
     # the metric functions in definition order, and if they give a scalar
     sections["metrics"] = dict(sorted(
@@ -105,9 +110,10 @@ def buildCatalog() -> dict[str, dict[str, dict]]:
                 if name == "representation":
                     continue
 
-                # a transform's data comes from the dataset, and the page
-                # applies every transform to every feature
-                if section == "transforms" and name in ("data", "indices"):
+                # a transform's node and name come from the request's from
+                # and into, and the page applies it to every feature
+                if section == "transforms" and name in ("self", "indices",
+                                                        "name"):
                     continue
 
                 # the default value, or None if the setting is required
@@ -178,8 +184,9 @@ class Server(ThreadingHTTPServer):
 
     def transform(self, request: dict) -> None:
         """
-        Transform a representation of the loaded dataset as described by a
-        page request, into another representation or over the data itself
+        Transform a node of the loaded dataset's tree as described by a page
+        request, attaching the result as its child, or replacing the data
+        itself; a name already stored is replaced, felling its branch
 
         Args:
             request: The transform, chosen by name, with its settings, the
@@ -197,9 +204,17 @@ class Server(ThreadingHTTPServer):
             raise ValueError("The name to store into is empty")
 
         entry = self.catalog["transforms"][request["transform"]]
-        source = self.dataset[request["from"]]
-        self.dataset[request["into"]] = entry["constructor"](
-            source, **request["settings"]
+        if request["into"] == "data": # transformed over the data itself
+            source = self.dataset.node(request["from"])
+            derived = entry["constructor"](source, **request["settings"])
+            self.dataset["data"] = derived.array # a new root fells the tree
+            return
+
+        if request["into"] in self.dataset: # replacing fells the stale branch
+            del self.dataset[request["into"]]
+        source = self.dataset.node(request["from"])
+        entry["constructor"](
+            source, name=request["into"], **request["settings"]
         )
 
     def select(self, request: dict) -> dict:
@@ -354,6 +369,21 @@ class Handler(SimpleHTTPRequestHandler):
                 "features": features,
                 "data": array.T.tolist()
             })
+        elif self.path == "/tree": # every stored transform and its lineage
+            dataset = self.server.dataset
+            tree = []
+            if dataset is not None:
+                nodes = [dataset.root]
+                for node in nodes: # grows as each node's children are found
+                    nodes.extend(node.children)
+                    if node.parent is not None:
+                        tree.append({
+                            "name": node.name,
+                            "parent": node.parent.name,
+                            "transform": node.transform,
+                            "settings": node.settings
+                        })
+            self.sendJSON(200, tree)
         elif self.path == "/catalog": # the settings of each entry, as JSON
             catalog = {}
             for section, entries in self.server.catalog.items():

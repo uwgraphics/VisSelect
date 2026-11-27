@@ -186,6 +186,31 @@ class TestServer(unittest.TestCase):
         self.assertEqual(scaled.min(), 0.0)
         self.assertEqual(scaled.max(), 1.0)
 
+    def testTransformReplaces(self):
+        """Test that transforming into a stored name fells its branch"""
+        self.server.generate({"generator": "normal",
+                              "settings": {"size": (20, 2), "seed": 0}})
+        self.server.transform({"transform": "scale", "from": "data",
+                               "into": "scaled", "settings": {}})
+        self.server.transform({"transform": "discretize", "from": "scaled",
+                               "into": "binned", "settings": {"bins": 2}})
+        self.assertEqual(self.server.dataset.node("binned").parent.name,
+                         "scaled")
+        self.server.transform({"transform": "scale", "from": "data",
+                               "into": "scaled", "settings": {}})
+        self.assertNotIn("binned", self.server.dataset)
+
+    def testTransformData(self):
+        """Test that transforming into data replaces it and fells the tree"""
+        self.server.generate({"generator": "normal",
+                              "settings": {"size": (20, 2), "seed": 0}})
+        self.server.transform({"transform": "scale", "from": "data",
+                               "into": "scaled", "settings": {}})
+        self.server.transform({"transform": "scale", "from": "scaled",
+                               "into": "data", "settings": {}})
+        self.assertEqual(self.server.dataset["data"].min(), 0.0)
+        self.assertNotIn("scaled", self.server.dataset)
+
     def testTransformRejects(self):
         """Test that transforming without a dataset or a name is rejected"""
         request = {"transform": "scale", "from": "data",
@@ -343,6 +368,19 @@ class TestHandler(unittest.TestCase):
         status, reply = self.post("/transform", request | {"transform": "nope"})
         self.assertEqual(status, 400)
         self.assertIn("error", reply)
+
+    def testTree(self):
+        """Test that the tree route serves each node's name and lineage"""
+        self.assertEqual(self.get("/tree"), (200, []))
+        self.generate()
+        self.post("/transform", {"transform": "scale", "from": "data",
+                                 "into": "scaled", "settings": {}})
+        status, reply = self.get("/tree")
+        self.assertEqual(status, 200)
+        self.assertEqual(reply, [{
+            "name": "scaled", "parent": "data", "transform": "scale",
+            "settings": {"interval": [0.0, 1.0], "indices": None}
+        }])
 
     def testRepresentation(self):
         """Test that a representation is served by name with its features"""

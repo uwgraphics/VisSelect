@@ -9,7 +9,7 @@ import numpy as np
 # local files
 from .dataset import Dataset
 from .subset import Subset
-from .scalarization import WeightedSum
+from .scalarization import Chebyshev
 
 
 # --- Loss Function Class ------------------------------------------------------
@@ -37,7 +37,7 @@ class Loss:
         if len(objectives) < 1:
             raise ValueError("Objectives list is empty")
         if scalarization is None:
-            scalarization = WeightedSum()
+            scalarization = Chebyshev()
 
         self._objectives = list(objectives)
         self._scalarization = scalarization
@@ -89,7 +89,7 @@ class Loss:
         if noEncoding:
             raise ValueError(f"No encoding for {', '.join(noEncoding)}")
 
-        return self._scalarization.encode(encoding)
+        return self._scalarization.encode(model, encoding)
 
     def __len__(self) -> int:
         """

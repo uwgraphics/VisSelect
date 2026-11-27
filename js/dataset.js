@@ -41,9 +41,16 @@ export function setupDataset(catalog, loaded) {
     datasetInput.addEventListener("change", loadFile);
     generateDataset.addEventListener("click", generate);
 
-    // switch to the options for random generation, from the start or a file
+    // switch to the options for random generation, from the start or a
+    // file, with the distribution chosen up front and still changeable
     for (const toGeneration of [randomGeneration, fileToGeneration]) {
-        toGeneration.addEventListener("click", () => showMode("generate"));
+        toGeneration.append(...options(Object.keys(generators)));
+        toGeneration.addEventListener("change", () => {
+            generator.value = toGeneration.value;
+            generator.dispatchEvent(new Event("change")); // show settings
+            toGeneration.selectedIndex = 0;
+            showMode("generate");
+        });
     }
 }
 

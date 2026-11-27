@@ -58,11 +58,53 @@ class TestWeightedSum(ScalarizationTestCase):
         with self.assertRaises(ValueError):
             linear(self.vector)
 
+    def testEncodeDefaultWeights(self):
+        """Test that encoding with no weights sums the expressions"""
+        linear = scalarization.WeightedSum()
+        self.assertEqual(linear.encode(None, [2.0, 3.0]), 5.0)
+
     def testEncodeDifferentLengths(self):
         """Test weights and expressions of differing lengths raise encoding"""
         linear = scalarization.WeightedSum([1.0])
         with self.assertRaises(ValueError):
-            linear.encode([2.0, 3.0])
+            linear.encode(None, [2.0, 3.0])
+
+class TestChebyshev(ScalarizationTestCase):
+    """
+    Test the Chebyshev scalarization class
+    """
+
+    def testNegativeWeight(self):
+        """Test that a negative weight produces a ValueError"""
+        with self.assertRaises(ValueError):
+            scalarization.Chebyshev([-2.0])
+
+    def testDefaultWeights(self):
+        """Test that calling with no weights produces the largest objective"""
+        largest = scalarization.Chebyshev()
+        self.assertEqual(largest(self.vector), 3.0)
+
+    def testCall(self):
+        """Test that the largest weighted objective is the value"""
+        largest = scalarization.Chebyshev([3.0, 2.0, 1.0])
+        self.assertEqual(largest(self.vector), 4.0)
+
+    def testWeights(self):
+        """Test the Chebyshev scalarization weights property"""
+        largest = scalarization.Chebyshev([3.0, 2.0, 1.0])
+        assert_array_equal(largest.weights, [3.0, 2.0, 1.0])
+
+    def testDifferentLengths(self):
+        """Test weights and vectors of differing lengths produce a ValueError"""
+        largest = scalarization.Chebyshev([1.0])
+        with self.assertRaises(ValueError):
+            largest(self.vector)
+
+    def testEncodeDifferentLengths(self):
+        """Test weights and expressions of differing lengths raise encoding"""
+        largest = scalarization.Chebyshev([1.0])
+        with self.assertRaises(ValueError):
+            largest.encode(None, [2.0, 3.0])
 
 if __name__ == "__main__":
     unittest.main()

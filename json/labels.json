@@ -32,5 +32,6 @@
     "representation": "On",
     "ClusterCenters": "Cluster Centers",
     "tolerance": "Tolerance",
-    "EarthMoversDistance": "Earth Mover's Distance"
+    "EarthMoversDistance": "Earth Mover's Distance",
+    "DiscreteCoverage": "Discrete Coverage"
 }

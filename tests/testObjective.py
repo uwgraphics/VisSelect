@@ -11,7 +11,7 @@ import numpy as np
 from scipy.stats import wasserstein_distance_nd
 
 # local files
-from visselect import Dataset, Subset, metric, objective
+from visselect import Dataset, Subset, metric, objective, transform
 
 # optional dependencies
 try:
@@ -290,6 +290,41 @@ class TestClusterCenters(unittest.TestCase):
         clusters = objective.ClusterCenters(k=15)
         with self.assertRaises(ValueError):
             clusters(Subset(self.dataset, np.arange(15) < 5))
+
+
+class TestDiscreteCoverage(unittest.TestCase):
+    """
+    Test the discrete coverage objective class
+    """
+
+    def testShare(self):
+        """Test that the loss is the share of the categories left uncovered"""
+        dataset = Dataset(np.array([[1.0, 0.0], [1.0, 0.0], [0.0, 1.0]]))
+        coverage = objective.DiscreteCoverage()
+        self.assertEqual(
+            coverage(Subset(dataset, np.array([True, True, False]))), 0.5)
+        self.assertEqual(
+            coverage(Subset(dataset, np.array([True, False, True]))), 0.0)
+
+    def testEncoded(self):
+        """Test coverage over a discretized and encoded representation"""
+        dataset = Dataset(np.array([[0.0], [5.0], [10.0]]))
+        root = transform.Transform(dataset["data"])
+        dataset["encoded"] = root.discretize(bins=2).encode().array
+        coverage = objective.DiscreteCoverage(representation="encoded")
+        self.assertEqual(
+            coverage(Subset(dataset, np.array([True, False, False]))), 0.5)
+        self.assertEqual(
+            coverage(Subset(dataset, np.array([True, True, False]))), 0.0)
+
+    def testRejectOrdinal(self):
+        """Test that bin numbers, discretized but not encoded, raise"""
+        dataset = Dataset(np.array([[0.0], [5.0], [10.0]]))
+        root = transform.Transform(dataset["data"])
+        dataset["discretized"] = root.discretize(bins=3).array
+        coverage = objective.DiscreteCoverage(representation="discretized")
+        with self.assertRaisesRegex(ValueError, "one hot"):
+            coverage(Subset(dataset, np.array([True, True, False])))
 
 
 if __name__ == "__main__":

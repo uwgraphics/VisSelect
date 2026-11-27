@@ -10,6 +10,9 @@ from typing import Any, Callable, Sequence, TextIO
 import numpy as np
 from numpy.typing import ArrayLike
 
+# local files
+from .transform import Transform
+
 
 # --- Dataset Class ------------------------------------------------------------
 
@@ -42,7 +45,6 @@ class Dataset:
             FileNotFoundError: If a csv file path does not exist
         """
         self._characteristics = {}
-        self._representations = {}
         dataFeatures = None # feature names supplied by the data itself, if any
 
         if isinstance(data, (str, PathLike)) or hasattr(data, "read"): # if file
@@ -81,9 +83,8 @@ class Dataset:
                 raise ValueError("Features list contains duplicates")
             self._features = list(features)
 
-        # load the root as a non-writeable view of the supplied dataset
-        self._root = data.view()
-        self._root.flags.writeable = False
+        # the root of the transforms tree holding the data
+        self._root = Transform(data)
 
     def __getattr__(self, name: str) -> Any:
         """
@@ -100,8 +101,9 @@ class Dataset:
             raise AttributeError(name)
 
         for function, evaluated in self._characteristics:
-            if evaluated == "data" and getattr(function, "__name__", None) == name:
-                return self._characteristics[function, evaluated]
+            if evaluated == "data":
+                if getattr(function, "__name__", None) == name:
+                    return self._characteristics[function, evaluated]
 
         raise AttributeError(f"Dataset has no characteristic {name}")
 
@@ -113,7 +115,8 @@ class Dataset:
     
     def __setitem__(self, name: str, array: ArrayLike) -> None:
         """
-        Assign an array to a node of the tree
+        Assign an array to a node of the tree as a child of the root,
+        felling the branch of any node already stored under the name
 
         Args:
             name: The name the array is assigned to, or "data" for the data
@@ -126,63 +129,100 @@ class Dataset:
         if array.shape[0] != len(self):
             raise ValueError("Lengths of array rows and dataset differ")
 
-        array = array.view()
-        array.flags.writeable = False
-
         if name == "data":
-            if array.shape[1] != self._root.shape[1]:
+            if array.shape[1] != self.size[1]:
                 if hasattr(self, "_features"):
                     del self._features
-            self._root = array
-            self._representations = {}
+            self._root = Transform(array) # replacing fells the whole tree
             self._characteristics = {}
             return
 
-        self._representations[name] = array
-        self._characteristics = {
-            key: value for key, value in self._characteristics.items()
-            if key[1] != name
-        }
+        if self._node(name) is not None: # replacing fells the stale branch
+            del self[name]
+        Transform(array, name, parent=self._root)
 
     def __getitem__(self, name: str) -> np.ndarray:
         """
-        Look up a stored representation by name, or the data itself by "data"
+        Look up a stored transform by name, or the data itself by "data"
 
         Args:
-            name: The name of the representation, or "data" for the data
+            name: The name of the transform, or "data" for the data
 
         Raises:
-            KeyError: If no representation is stored under the name
+            KeyError: If no transform is stored under the name
         """
-        if name == "data":
-            return self._root
-        if name not in self._representations:
-            raise KeyError(f"Dataset has no representation {name}")
-        return self._representations[name]
+        return self.node(name).array
+
+    def __contains__(self, name: str) -> bool:
+        """
+        Whether a transform is stored under the name
+
+        Args:
+            name: The name of the transform, or "data" for the data
+        """
+        return self._node(name) is not None
 
     def __delitem__(self, name: str) -> None:
         """
-        Remove a stored representation by name, dropping the characteristics
-        evaluated on it
+        Remove a stored transform by name, dropping its subtree if it exists
 
         Args:
-            name: The name of the representation to remove
+            name: The name of the transform to remove
 
         Raises:
             ValueError: If the name is "data", which cannot be removed
-            KeyError: If no representation is stored under the name
+            KeyError: If no transform is stored under the name
         """
         if name == "data":
             raise ValueError("The data itself cannot be removed")
-        if name not in self._representations:
-            raise KeyError(f"Dataset has no representation {name}")
+        node = self._node(name)
+        if node is None:
+            raise KeyError(f"Dataset has no transform {name}")
 
-        del self._representations[name]
+        node.parent.children.remove(node)
+        felled = set()
+        branch = [node]
+        while branch:
+            fallen = branch.pop()
+            felled.add(fallen.name)
+            branch.extend(fallen.children)
         self._characteristics = {
             key: value for key, value in self._characteristics.items()
-            if key[1] != name
+            if key[1] not in felled
         }
-    
+
+    def _node(self, name: str) -> Transform | None:
+        """
+        Find the node of the transform tree by name
+
+        Args:
+            name: The name of the node, or "data" for the root
+        """
+        nodes = [self._root]
+        while nodes:
+            node = nodes.pop()
+            if node.name == name:
+                return node
+            nodes.extend(node.children)
+        return None
+
+    def node(self, name: str) -> Transform:
+        """
+        Look up a node of the transform tree, to derive transforms from or
+        to inspect its lineage
+
+        Args:
+            name: The name of the node, or "data" for the root
+
+        Raises:
+            KeyError: If no transform is stored under the name
+        """
+        node = self._node(name)
+        if node is None:
+            raise KeyError(f"Dataset has no transform {name}")
+        return node
+
+
     def _read(
         self,
         source: str | PathLike | TextIO
@@ -214,16 +254,15 @@ class Dataset:
 
     def evaluate(self, function: Callable, name: str = "data") -> Any:
         """
-        Evaluate a metric function on a representation of the dataset, or on
-        the data itself by default, and cache it by function and name
+        Evaluate a metric function on the data or a transform of the data, and 
+        cache it by function and name
 
         Args:
             function: The function to evaluate on the dataset
-            name: The name of the representation evaluated, or "data" for
-                the data itself
+            name: The name of the transform evaluated, or "data" for the data
 
         Raises:
-            KeyError: If no representation is stored under the name
+            KeyError: If no transform is stored under the name
         """
         if (function, name) not in self._characteristics:
             self._characteristics[function, name] = function(self[name])
@@ -240,8 +279,15 @@ class Dataset:
         return self._features
 
     @property
+    def root(self) -> Transform:
+        """
+        The root node of the transform tree, holding the data itself
+        """
+        return self._root
+
+    @property
     def size(self) -> tuple[int, int]:
         """
         The tuple (rows, columns) of the size of the dataset
         """
-        return self._root.shape
+        return self._root.array.shape

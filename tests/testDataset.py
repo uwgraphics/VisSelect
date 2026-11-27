@@ -181,6 +181,13 @@ class TestDatasetCharacteristics(unittest.TestCase):
         value = self.dataset.evaluate(metric.mean)
         self.assertIs(self.dataset.mean, value)
 
+    def testCharacteristicData(self):
+        """Test that the name skips characteristics of other representations"""
+        self.dataset["doubled"] = self.dataset["data"] * 2
+        self.dataset.evaluate(metric.mean, "doubled")
+        value = self.dataset.evaluate(metric.mean)
+        self.assertIs(self.dataset.mean, value)
+
     def testCharacteristicCustom(self):
         """Test that a custom metric function is available by name"""
         def total(array):
@@ -243,6 +250,13 @@ class TestDatasetRepresentations(unittest.TestCase):
         with self.assertRaises(KeyError):
             self.dataset["missing"]
 
+    def testContains(self):
+        """Test that stored names are in the dataset and missing are not"""
+        self.dataset["rep"] = np.ones((3, 2))
+        self.assertIn("rep", self.dataset)
+        self.assertIn("data", self.dataset)
+        self.assertNotIn("missing", self.dataset)
+
     def testEvaluateName(self):
         """Test that a characteristic is cached per representation name"""
         self.dataset["doubled"] = self.data * 2
@@ -272,6 +286,23 @@ class TestDatasetRepresentations(unittest.TestCase):
         self.dataset["rep"] = np.full((3, 2), 2.0) # the old leaves are gone
         assert_array_equal(self.dataset.evaluate(metric.mean, "rep"),
                            [2.0, 2.0])
+
+    def testStoreFells(self):
+        """Test that replacing a node fells the branch derived from it"""
+        self.dataset.root.discretize(bins=2).encode()
+        self.dataset.evaluate(metric.mean, "encoded")
+        self.dataset["discretized"] = np.ones((3, 2))
+        with self.assertRaises(KeyError):
+            self.dataset["encoded"]
+        self.assertNotIn((metric.mean, "encoded"),
+                         self.dataset._characteristics)
+
+    def testDeleteFells(self):
+        """Test that deleting a node also fells everything derived from it"""
+        self.dataset.root.discretize(bins=2).encode()
+        del self.dataset["discretized"]
+        with self.assertRaises(KeyError):
+            self.dataset["encoded"]
 
     def testDeleteData(self):
         """Test that deleting the data name raises a ValueError"""

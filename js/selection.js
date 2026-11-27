@@ -32,7 +32,12 @@ export function setupSelection(catalog, changed) {
     addObjective.append(...options(Object.keys(objectiveSettings)));
     addObjective.addEventListener("change", addTerm);
     scalarization.append(...options(Object.keys(catalog.scalarizations)));
+    scalarization.value = "Chebyshev"; // the package's default scalarization
+    scalarization.addEventListener("change", updateObjectives);
     fitted(scalarization);
+
+    // one objective is no blend, so there is no scalarization to pick yet
+    scalarization.closest(".field").hidden = true;
     fitted(subsetSize);
 
     // representation choices only appear once there is more than one
@@ -224,19 +229,42 @@ function representationField() {
 }
 
 /**
- * Write L(S) = before the first term and + or − before the rest, and show
- * weights only when blending two or more objectives
+ * Write L(S) = before the first term and + or − before the rest, or wrap
+ * the terms in max( , ) when the Chebyshev scalarization blends them, and
+ * show weights only when blending two or more objectives
  */
 function updateObjectives() {
     const rows = objectives.children;
+    const largest = scalarization.value === "Chebyshev" && rows.length > 1;
+    scalarization.closest(".field").hidden = rows.length < 2;
+    for (const trail of objectives.querySelectorAll(".trail")) trail.remove();
     for (const [i, row] of [...rows].entries()) {
         // a negative term's minus takes the place of the +, or follows the =
         const negative = "negative" in row.dataset;
+        const sign = negative ? "<mo>−</mo>" : "";
         row.querySelector(".lead").innerHTML = i === 0
             ? "<math><mi>L</mi><mo>⁡</mo><mo stretchy=\"false\">(</mo>"
                 + "<mi>S</mi><mo stretchy=\"false\">)</mo><mo>=</mo>"
-                + (negative ? "<mo>−</mo>" : "") + "</math>"
-            : `<math><mo>${negative ? "−" : "+"}</mo></math>`;
+                + (largest
+                    ? "<mi>max</mi><mo>⁡</mo>"
+                        + "<mo class=\"maxParen\" stretchy=\"false\">[</mo>"
+                    : "")
+                + sign + "</math>"
+            : largest
+                ? `<math>${sign}</math>`
+                : `<math><mo>${negative ? "−" : "+"}</mo></math>`;
+
+        // inside a max each term trails its own comma, the last the close,
+        // in the formula's own grid cell so they hug the term's end
+        if (largest) {
+            const trail = document.createElement("span");
+            trail.className = "trail math";
+            trail.innerHTML = i === rows.length - 1
+                ? "<math><mo class=\"maxParen\" stretchy=\"false\">]</mo>"
+                    + "</math>"
+                : "<math><mo>,</mo></math>";
+            row.querySelector(".formula").append(trail);
+        }
 
         const weightLabel = row.querySelector(".weight");
         weightLabel.hidden = rows.length < 2;

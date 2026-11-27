@@ -25,8 +25,10 @@
                             <label id="loadFile" class="button">
                                 Import Dataset from File<input id="datasetInput"
                                     type="file" hidden></label>
-                            <button id="randomGeneration" class="button"
-                                type="button">Generate a Synthetic Dataset</button>
+                            <select id="randomGeneration" class="button">
+                                <option disabled selected>Generate a Synthetic
+                                    Dataset</option>
+                            </select>
                         </div>
                         <div id="generatorButtons" hidden>
                             <label class="button" for="datasetInput">Import
@@ -35,8 +37,10 @@
                                 type="button">Generate</button>
                         </div>
                         <div id="fileButtons" hidden>
-                            <button id="fileToGeneration" class="button"
-                                type="button">Generate a Synthetic Dataset</button>
+                            <select id="fileToGeneration" class="button">
+                                <option disabled selected>Generate a Synthetic
+                                    Dataset</option>
+                            </select>
                         </div>
                     </div>
                     <div id="datasetControls">
@@ -65,8 +69,10 @@
                     <div class="sectionHeading">
                         <h2>Data Transforms</h2>
                         <div>
-                            <button id="transform" class="button"
-                                type="button" hidden>Add Transform</button>
+                            <select id="transform" class="button" hidden>
+                                <option disabled selected>Add Transform
+                                </option>
+                            </select>
                             <button id="applyTransform" class="button"
                                 type="button" hidden>Apply</button>
                         </div>

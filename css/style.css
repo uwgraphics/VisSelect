@@ -180,6 +180,9 @@ button, input, select, .button {
 .button:hover {
     color: var(--dark-grey);
 }
+#addObjective, #transform {
+    width: 7.5em; /* select buttons otherwise size to their longest option */
+}
 
 /* --- Fields --------------------------------------------------------------- */
 .field {
@@ -278,6 +281,12 @@ button, input, select, .button {
 #objectives .formula {
     grid-column: 3;
     white-space: nowrap; /* a term stays on one line, never broken */
+}
+#objectives .maxParen {
+    font-size: 1.4em; /* display size brackets holding whole terms */
+}
+#objectives .trail .maxParen {
+    margin-left: 0.15em; /* clear of a subscript ending the last term */
 }
 #objectives .objective {
     grid-column: 4;

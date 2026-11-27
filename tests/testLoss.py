@@ -53,9 +53,9 @@ class TestLossCall(LossTestCase):
         self.assertEqual(loss(self.subset), 9.0)
 
     def testTwoObjectives(self):
-        """Test that two objectives sum with default weights"""
+        """Test that the largest objective is the default blended loss"""
         loss = Loss([self.mean, self.variance])
-        self.assertEqual(loss(self.subset), 15.75)
+        self.assertEqual(loss(self.subset), 11.25)
 
     def testTwoObjectivesWeighted(self):
         """Test that each weight applies to its own objective"""
@@ -79,9 +79,9 @@ class TestLossProperties(LossTestCase):
         self.assertEqual(len(loss), 2)
 
     def testDefaultScalarization(self):
-        """Test that the default scalarization method is the WeightedSum"""
+        """Test that the default scalarization method is the Chebyshev"""
         loss = Loss([self.mean])
-        self.assertIsInstance(loss.scalarization, scalarization.WeightedSum)
+        self.assertIsInstance(loss.scalarization, scalarization.Chebyshev)
 
     def testObjectivesProperty(self):
         """Test that the objectives property returns the correct objectives"""

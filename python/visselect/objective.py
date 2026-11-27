@@ -401,3 +401,56 @@ class ClusterCenters:
             data.astype(float), self._k, minit="++", seed=self._seed
         )
         return centers
+
+
+# --- Discrete Coverage Objective ----------------------------------------------
+
+class DiscreteCoverage:
+    """
+    Minimize the share of the dataset's categories the subset leaves
+    uncovered, over a one hot encoded representation
+    """
+
+    def __init__(self, representation: str = "data") -> None:
+        """
+        Initialize a discrete coverage objective
+
+        Args:
+            representation: The name of the one hot encoded representation
+                evaluated, or "data" for the data itself
+        """
+        self._representation = representation
+
+    def __call__(
+        self,
+        subset: Subset
+    ) -> float:
+        """
+        Compute the share of the categories of the dataset, one per column
+        of the one hot encoding, that no item of the subset covers
+
+        Args:
+            subset: The subset to evaluate the coverage of
+
+        Raises:
+            ValueError: If the representation is not one hot encoded
+        """
+        categories = subset.dataset.evaluate(self._categories,
+                                             self._representation)
+        data = subset[self._representation]
+        covered = np.count_nonzero(data.any(axis=0))
+        return 1.0 - covered / categories
+
+    def _categories(self, data: np.ndarray) -> int:
+        """
+        Count the categories of the one hot encoding, one per column
+
+        Args:
+            data: The data array of the dataset
+
+        Raises:
+            ValueError: If the array holds values other than 0 and 1
+        """
+        if np.any((data != 0) & (data != 1)):
+            raise ValueError("Representation is not one hot encoded")
+        return data.shape[1]
