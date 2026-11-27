@@ -37,6 +37,16 @@ class TestExtremes(unittest.TestCase):
         data = np.array([[0.0, 5.0], [2.0, 1.0], [4.0, 3.0]])
         np.testing.assert_array_equal(metric.min(data), [0.0, 1.0])
 
+class TestSum(unittest.TestCase):
+    """
+    Test the per feature sum metric
+    """
+
+    def testSums(self):
+        """Test that each feature's values are added up"""
+        data = np.array([[0.0, 5.0], [2.0, 1.0], [4.0, 3.0]])
+        np.testing.assert_array_equal(metric.sum(data), [6.0, 9.0])
+
 class TestHull(unittest.TestCase):
     """
     Test the convex hull metric

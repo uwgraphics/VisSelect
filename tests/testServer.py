@@ -46,8 +46,9 @@ class TestBuildCatalog(unittest.TestCase):
     def testObjectiveMetric(self):
         """Test that a metric is a setting chosen from the metrics by name"""
         settings = self.catalog["objectives"]["Preserve"]["settings"]
-        self.assertEqual(settings["metric"]["choices"],
-                         ["mean", "variance", "range", "max", "min", "hull"])
+        self.assertEqual(
+            settings["metric"]["choices"],
+            ["mean", "variance", "range", "max", "min", "sum", "hull"])
         self.assertEqual(settings["metric"]["default"], "mean")
         self.assertEqual(settings["metric"]["scalar"], ["hull"])
         function = self.catalog["metrics"]["variance"]["constructor"]
