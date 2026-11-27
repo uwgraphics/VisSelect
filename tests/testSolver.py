@@ -7,7 +7,7 @@ import unittest
 import numpy as np
 
 # local files
-from visselect import Dataset, Loss, Problem, metric, objective
+from visselect import Dataset, Loss, Problem, Subset, metric, objective
 from visselect.algorithm import Random
 from visselect.solver import Solver
 
@@ -30,6 +30,22 @@ class TestSolver(unittest.TestCase):
         """Test that a non-callable algorithm raises a TypeError"""
         with self.assertRaises(TypeError):
             Solver(5)
+
+    def testVariableSizeGate(self):
+        """Test that a variable size problem needs a declaring algorithm"""
+        variable = Problem(self.dataset, self.loss, epsilon=0.5)
+        with self.assertRaisesRegex(ValueError, "fixed size"):
+            Solver(Random(samples=1))(variable)
+
+        class Resizer: # declares support through the variableSize member
+            variableSize = True
+            def __call__(self, problem, emit):
+                indicator = np.arange(len(problem.dataset)) < 2
+                subset = Subset(problem.dataset, indicator)
+                emit(subset, problem.evaluate(subset))
+
+        results = Solver(Resizer())(variable)
+        self.assertEqual(len(results.losses), 1)
 
     def testBest(self):
         """Test that the results keep the lowest loss and its frozen subset"""

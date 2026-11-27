@@ -134,6 +134,8 @@ class Distinctness:
             subset: The subset to evaluate the distinctness of
         """
         data = subset[self._representation]
+        if data.shape[0] < 2: # a lone item has no neighbor to differ from
+            return 0.0
         distances = cdist(data, data)
         np.fill_diagonal(distances, np.inf) # an item is not its own neighbor
 

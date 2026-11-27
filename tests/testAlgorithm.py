@@ -164,6 +164,50 @@ class TestGreedy(AlgorithmTestCase):
             )
             self.assertEqual(len(losses), limit)
 
+    def scriptedProblem(self):
+        """A variable size problem built as a funnel: from any start, the
+        only improving moves walk adds, then a swap, then a drop"""
+        losses = {frozenset({0}): 90.0, frozenset({0, 1}): 80.0,
+                  frozenset({0, 1, 2}): 70.0, frozenset({0, 1, 2, 3}): 60.0,
+                  frozenset({1, 2, 3, 4}): 55.0, frozenset({2, 3, 4}): 50.0}
+        def scripted(subset):
+            members = frozenset(np.flatnonzero(subset.indicator).tolist())
+            return losses.get(members, 100.0)
+        dataset = Dataset(np.zeros((5, 1)))
+        return Problem(dataset, Loss([scripted]), sizeWeight=1.0)
+
+    def testResizePath(self):
+        """Test that adds, a swap and a drop chain to a scripted optimum"""
+        results = Solver(Greedy(seed=0))(self.scriptedProblem())
+        self.assertEqual(results.loss, 50.0 + 3 * 1.0) # loss plus its size
+        self.assertEqual(results.subset.indicator.tolist(),
+                         [False, False, True, True, True])
+
+    def testResizeEpsilon(self):
+        """Test that an epsilon run settles on a single feasible item"""
+        dataset = Dataset(np.array([[0.0], [1.0], [2.0]]))
+        problem = Problem(dataset, Loss([objective.Preserve(metric.mean)]),
+                          epsilon=1.0)
+        results = Solver(Greedy(seed=0))(problem)
+        self.assertEqual(results.loss, 1.0) # the size once feasible
+        self.assertEqual(results.subset.indicator.sum(), 1)
+
+    def testResizeStop(self):
+        """Test that returning False stops a variable run at any point"""
+        problem = self.scriptedProblem()
+        full = Solver(Greedy(seed=0))(problem)
+        for limit in range(1, len(full.losses)):
+            stopped = []
+            def callback(results):
+                stopped.append(results.losses[-1])
+                return len(stopped) < limit
+            Solver(Greedy(seed=0))(problem, callback=callback)
+            self.assertEqual(len(stopped), limit)
+
+    def testVariableEvaluations(self):
+        """Test that a variable size run declares no evaluation count"""
+        self.assertIsNone(Greedy().evaluations(self.scriptedProblem()))
+
 class TestAnnealing(AlgorithmTestCase):
     """
     Test the simulated annealing algorithm

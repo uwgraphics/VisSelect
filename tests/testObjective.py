@@ -96,6 +96,12 @@ class TestDistinctness(ObjectiveTestCase):
         subset = Subset(dataset, np.array([True, True, True]))
         self.assertEqual(objective.Distinctness()(subset), -(1 + 1 + 2))
 
+    def testLoneItem(self):
+        """Test that a single item, with no neighbor, has no distinctness"""
+        dataset = Dataset(np.array([[0.0], [1.0], [3.0]]))
+        subset = Subset(dataset, np.array([True, False, False]))
+        self.assertEqual(objective.Distinctness()(subset), 0.0)
+
 
 
 class TestCrossings(unittest.TestCase):

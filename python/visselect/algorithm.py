@@ -89,8 +89,11 @@ class Random:
 
 class Greedy:
     """
-    Selects a subset by swapping out items and keeping those that lower the loss
+    Selects a subset by swapping out items and keeping those that lower the
+    loss, also growing and shrinking the subset when its size is variable
     """
+
+    variableSize = True # also solves problems that leave the size variable
 
     def __init__(self, seed: int | None = None) -> None:
         """
@@ -107,11 +110,31 @@ class Greedy:
         emit: Callable
     ) -> None:
         """
-        Starts from a random subset and swaps an item in if it improves the loss
+        Starts from a random subset and improves it greedily: by swaps
+        alone at a fixed size, or by adds, drops and swaps when variable
 
         Args:
             problem: The subset selection problem definition to solve
-            emit: The callback which reports each evaluation and stops the run 
+            emit: The callback which reports each evaluation and stops the run
+                when it returns False
+        """
+        if problem.size is None:
+            self._resize(problem, emit)
+        else:
+            self._sweep(problem, emit)
+
+    def _sweep(
+        self,
+        problem: Problem,
+        emit: Callable
+    ) -> None:
+        """
+        Swaps an item in if it improves the loss, over one pass that tries
+        every item outside the starting subset against every member
+
+        Args:
+            problem: The subset selection problem definition to solve
+            emit: The callback which reports each evaluation and stops the run
                 when it returns False
         """
         rng = np.random.default_rng(self._seed)
@@ -149,14 +172,96 @@ class Greedy:
                 members[bestPosition] = item
                 loss = bestLoss
 
-    def evaluations(self, problem: Problem) -> int:
+    def _resize(
+        self,
+        problem: Problem,
+        emit: Callable
+    ) -> None:
         """
-        The number of evaluations a run takes: a random starting subset plus 
-        one per swap of each item outside the subset
+        Grows, shrinks and swaps a subset from one random starting item,
+        keeping the changes that improve the problem's total, with ties
+        broken toward lower loss, until a full pass improves nothing
+
+        Args:
+            problem: The subset selection problem definition to solve
+            emit: The callback which reports each evaluation and stops the run
+                when it returns False
+        """
+        rng = np.random.default_rng(self._seed)
+        length = len(problem.dataset)
+        indicator = np.zeros(length, dtype=bool)
+        indicator[rng.integers(length)] = True
+        subset = Subset(problem.dataset, indicator)
+
+        loss = float(problem.loss(subset))
+        key = (problem.evaluate(subset, loss), loss)
+        if not emit(subset, key[0]):
+            return
+
+        improved = True
+        while improved:
+            improved = False
+            for item in rng.permutation(length):
+                if indicator[item]: # a member auditions to leave
+                    if np.count_nonzero(indicator) == 1:
+                        continue # the last member stays
+                    indicator[item] = False
+                    dropLoss = float(problem.loss(subset))
+                    dropKey = (problem.evaluate(subset, dropLoss), dropLoss)
+                    keepGoing = emit(subset, dropKey[0]) # report, then revert
+                    indicator[item] = True
+                    if not keepGoing:
+                        return
+                    if dropKey < key:
+                        indicator[item] = False
+                        loss, key = dropLoss, dropKey
+                        improved = True
+                    continue
+
+                # an outside item auditions to join alone or by a swap, the
+                # best improving try of either kind kept
+                bestKey, bestLoss, leaving = key, None, None
+                indicator[item] = True
+                addLoss = float(problem.loss(subset))
+                addKey = (problem.evaluate(subset, addLoss), addLoss)
+                keepGoing = emit(subset, addKey[0]) # report, then revert
+                indicator[item] = False
+                if not keepGoing:
+                    return
+                if addKey < bestKey:
+                    bestKey, bestLoss, leaving = addKey, addLoss, None
+
+                for member in np.flatnonzero(indicator):
+                    indicator[member] = False
+                    indicator[item] = True
+                    swapLoss = float(problem.loss(subset))
+                    swapKey = (problem.evaluate(subset, swapLoss), swapLoss)
+                    keepGoing = emit(subset, swapKey[0]) # report, then revert
+                    indicator[item] = False
+                    indicator[member] = True
+                    if not keepGoing:
+                        return
+                    if swapKey < bestKey:
+                        bestKey, bestLoss, leaving = swapKey, swapLoss, member
+
+                if bestLoss is not None:
+                    indicator[item] = True
+                    if leaving is not None:
+                        indicator[leaving] = False
+                    loss, key = bestLoss, bestKey
+                    improved = True
+
+    def evaluations(self, problem: Problem) -> int | None:
+        """
+        The number of evaluations a fixed size run takes: a random starting
+        subset plus one per swap of each item outside the subset, with no
+        count for a variable size run, which ends when a pass stops helping
 
         Args:
             problem: The problem the run would solve
         """
+        if problem.size is None:
+            return None
         size = problem.size
         return 1 + size * (len(problem.dataset) - size)
 

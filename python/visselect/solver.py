@@ -43,7 +43,17 @@ class Solver:
             problem: The subset selection problem definition to solve
             log: Whether to log the loss and time of every evaluation
             callback: Called with the results and returns false to stop early
+
+        Raises:
+            ValueError: If the problem's size is variable and the algorithm
+                does not declare variableSize support
         """
+        if problem.size is None and not getattr(
+            self._algorithm, "variableSize", False
+        ):
+            name = type(self._algorithm).__name__
+            raise ValueError(f"{name} requires a problem with a fixed size")
+
         evaluations = getattr(self._algorithm, "evaluations", None)
         total = evaluations(problem) if callable(evaluations) else evaluations
         seed = getattr(self._algorithm, "seed", None)

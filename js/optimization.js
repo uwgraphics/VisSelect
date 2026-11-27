@@ -34,6 +34,20 @@ export function setupOptimization(catalog, read, lock) {
     showAlgorithmSettings();
     algorithm.addEventListener("change", showAlgorithmSettings);
 
+    // a variable subset size closes off the fixed size only algorithms
+    document.addEventListener("sizingChanged", event => {
+        const variable = event.detail.variable;
+        for (const option of algorithm.options) {
+            option.disabled =
+                variable && !algorithms[option.value].variableSize;
+        }
+        if (algorithm.selectedOptions[0]?.disabled) {
+            algorithm.value = [...algorithm.options]
+                .find(option => !option.disabled).value;
+            algorithm.dispatchEvent(new Event("change")); // refit it
+        }
+    });
+
     selectSubset.addEventListener("click", select);
     stopSelection.addEventListener("click", () => {
         fetch("/stop", {method: "POST"});
@@ -64,7 +78,7 @@ export function resetOptimization() {
  * Show the settings of the chosen algorithm
  */
 function showAlgorithmSettings() {
-    const settings = settingInputs(algorithms[algorithm.value]);
+    const settings = settingInputs(algorithms[algorithm.value].settings);
     algorithmSettings.replaceChildren(...settings);
 }
 
@@ -83,7 +97,7 @@ async function select() {
     selectionInfo.classList.remove("error");
     setRunning(true);
     improvements = [];
-    startLoss();
+    startLoss(!("size" in request)); // any other sizing varies the size
 
     const response = await fetch("/select", {
         method: "POST",
@@ -115,9 +129,14 @@ function follow(event) {
     }
 
     if (message.status === "improved") {
-        improvements.push([message.evaluation, message.time, message.loss]);
+        improvements.push([message.evaluation, message.time, message.loss,
+                           message.subset.length]);
     }
     showSubset(new Set(message.subset));
+    if (message.subset) { // the size found, for a variable subset size
+        document.dispatchEvent(new CustomEvent("subsetSized",
+            {detail: {size: message.subset.length}}));
+    }
     showLoss(improvements, message.evaluation, message.time);
     // the share of the declared total done so far stands in for Running,
     // when the algorithm declared one

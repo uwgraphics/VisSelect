@@ -5,6 +5,8 @@ import {representationNames} from "./transforms.js";
 
 const chart = document.getElementById("chart");
 const lossChart = document.getElementById("lossChart");
+const lossCharts = document.getElementById("lossCharts");
+const sizeChart = document.getElementById("sizeChart");
 const plot = document.getElementById("plot");
 const xFeature = document.getElementById("xFeature");
 const yFeature = document.getElementById("yFeature");
@@ -20,7 +22,9 @@ const lossXAxisField = document.getElementById("lossXAxisField");
 let data = null; // the loaded dataset as one array of values per feature
 let features = []; // the feature names of what the scatterplot shows
 let subset = new Set(); // the indices of the items in the selected subset
-let improvements = []; // the [evaluation, time, loss] of each new best subset
+// the [evaluation, time, loss, size] of each new best subset
+let improvements = [];
+let sized = false; // whether the subset size varies, charted beside the loss
 let evaluations = 1; // the number of evaluations of the selection so far
 let elapsed = 0; // the seconds the selection has run so far
 
@@ -130,19 +134,24 @@ export function showSubset(indices) {
 }
 
 /**
- * Start a fresh loss chart for a selection that has just started
+ * Start a fresh loss chart for a selection that has just started, with the
+ * subset size charted beside it when the selection leaves the size variable
+ * @param {boolean} variable Whether the subset size is variable
  */
-export function startLoss() {
+export function startLoss(variable) {
     improvements = [];
     evaluations = 1;
     elapsed = 0;
+    sized = variable;
+    sizeChart.hidden = !sized;
+    if (!sized) sizeChart.replaceChildren();
     drawLossChart();
 }
 
 /**
  * Show the best loss found so far over the evaluations on the loss chart
- * @param {number[][]} best The [evaluation, time, loss] of each new best
- *     subset
+ * @param {number[][]} best The [evaluation, time, loss, size] of each new
+ *     best subset
  * @param {number} count The number of evaluations so far
  * @param {number} time The seconds the selection has run so far
  */
@@ -194,6 +203,8 @@ export function clearLossChart() {
     evaluations = 1;
     elapsed = 0;
     lossChart.replaceChildren();
+    sizeChart.replaceChildren();
+    sizeChart.hidden = true;
     lossXAxisField.hidden = true;
 }
 
@@ -238,10 +249,12 @@ function drawParallelCoordinates(data, subset) {
 
 /**
  * Draw a step chart of the best loss found so far over the evaluations,
- * four times as wide as tall, filling the width of the loss chart div
+ * and one of its subset size beside it when the size varies, together
+ * four times as wide as tall, filling the width of the loss charts div
  */
 function drawLossChart() {
     const width = lossChart.clientWidth;
+    const height = Math.round(lossCharts.clientWidth * 0.25);
 
     // the x axis counts evaluations or seconds, as toggled on the axis;
     // whole evaluations, while seconds keep their decimals
@@ -249,20 +262,27 @@ function drawLossChart() {
     const along = timed ? point => point[1] : point => point[0];
     const span = timed ? elapsed : evaluations;
 
-    // hold the latest best loss level out to the latest progress
+    // hold the latest best level out to the latest progress, for the loss
+    // at index 2 of each improvement or the subset size at index 3
     const last = improvements.at(-1);
-    const points = last
-        ? [...improvements.map(point => [along(point), point[2]]),
-           [span, last[2]]]
+    const series = value => last
+        ? [...improvements.map(point => [along(point), point[value]]),
+           [span, last[value]]]
         : [];
 
     // the y axis name goes along the axis; the x axis name is the toggle,
-    // centred below the axis like the scatterplot's feature dropdowns
+    // centred below the axis like the scatterplot's feature dropdowns, or
+    // below both charts when the subset size shares it
     const margin = plots.defaults.margin;
-    lossXAxisField.style.left =
-        `${(margin.left + width - margin.right) / 2}px`;
+    lossXAxisField.style.left = sized
+        ? `${lossCharts.clientWidth / 2}px`
+        : `${(margin.left + width - margin.right) / 2}px`;
     lossXAxisField.hidden = false;
 
-    lossChart.replaceChildren(plots.lossChart(points,
-        {...styling, width, span, wholeTicks: !timed, yLabel: "Loss"}));
+    const spec = {...styling, height, span, wholeTicks: !timed};
+    lossChart.replaceChildren(plots.lossChart(series(2),
+        {...spec, width, yLabel: "Loss"}));
+    if (sized) sizeChart.replaceChildren(plots.lossChart(series(3),
+        {...spec, width: sizeChart.clientWidth, wholeValues: true,
+         lineColor: "var(--dark-green)", yLabel: "Subset Size"}));
 }

@@ -74,19 +74,25 @@ export function formulaParts(name, settings) {
 
     // lay a setting's dropdown over one of its values, across the value's
     // width and the whole term's height, since a value's own box is short
-    function place(chooser, token) {
+    function cover(chooser, token) {
         const box = token.getBoundingClientRect();
         const origin = holder.getBoundingClientRect();
         chooser.style.left = `${box.left - origin.left}px`;
         chooser.style.top = "0";
         chooser.style.width = `${box.width}px`;
         chooser.style.height = "100%";
+    }
+
+    // move a setting's dropdown onto the value the pointer entered
+    function place(chooser, token) {
+        cover(chooser, token);
         point(token);
     }
 
     function render() {
         // in display style, with full size sums and limits underneath, while
         // staying inline in its row of the loss
+        holder.style.minWidth = ""; // sized again from what is drawn now
         holder.innerHTML = `<math displaystyle="true">${template}</math>`;
         const metric = choosers.metric?.value;
         if (settings.metric?.scalar.includes(metric)) {
@@ -121,12 +127,21 @@ export function formulaParts(name, settings) {
         placeNames();
     }
 
-    // line each name up with the left of its value, above the term
+    // line each name up with the left of its value, above the term, and
+    // keep each dropdown over the first of its values, never loose at its
+    // full width over whatever follows the term
     function placeNames() {
+        // Firefox sizes a term narrower than it draws its display size
+        // sums, so whatever follows would overlap the term's end: hold
+        // the term open to the width its math is really drawn at
+        const drawn = holder.querySelector("math").getBoundingClientRect();
+        holder.style.minWidth = `${drawn.width}px`;
+
         const origin = holder.getBoundingClientRect();
         for (const name of holder.querySelectorAll(".tokenLabel")) {
             const box = name.token.getBoundingClientRect();
             name.style.left = `${box.left - origin.left}px`;
+            cover(choosers[name.token.dataset.shows], name.token);
         }
     }
     new ResizeObserver(placeNames).observe(holder);

@@ -83,7 +83,7 @@ function showMode(mode) {
  * Show the settings of the chosen dataset generator
  */
 function showGeneratorSettings() {
-    const settings = settingInputs(generators[generator.value]);
+    const settings = settingInputs(generators[generator.value].settings);
     generatorSettings.replaceChildren(...settings);
 }
 

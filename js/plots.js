@@ -170,8 +170,8 @@ const plots = {
      * @param {number[][]} points The [along, value] points of the line
      * @param {object} spec The width, and any defaults overridden, with
      *     span for the x axis's reach, wholeTicks for only whole ticks
-     *     written short with SI prefixes such as 10k, and yLabel for a
-     *     name along the y axis
+     *     written short with SI prefixes such as 10k, wholeValues for
+     *     only whole ticks up the y axis, and yLabel for a name along it
      * @returns {SVGElement} The drawn chart
      */
     lossChart(points, spec = {}) {
@@ -209,9 +209,14 @@ const plots = {
         svg.append("g")
             .attr("transform", `translate(0,${height - margin.bottom})`)
             .call(xAxis).call(ticks);
+        const yAxis = d3.axisLeft(y);
+        if (spec.wholeValues) yAxis
+            .tickValues(y.ticks(yTicks).filter(Number.isInteger))
+            .tickFormat(d3.format("d"));
+        else yAxis.ticks(yTicks);
         svg.append("g")
             .attr("transform", `translate(${margin.left},0)`)
-            .call(d3.axisLeft(y).ticks(yTicks)).call(ticks);
+            .call(yAxis).call(ticks);
 
         if (spec.yLabel) {
             const middle = (margin.top + height - margin.bottom) / 2;

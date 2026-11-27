@@ -146,6 +146,10 @@ def buildCatalog() -> dict[str, dict[str, dict]]:
                 "constructor": constructor,
                 "settings": settings
             }
+            if section == "algorithms": # which can leave the size variable
+                catalog[section][entry]["variableSize"] = getattr(
+                    constructor, "variableSize", False
+                )
     return catalog
 
 # --- Server and Handler Classes -----------------------------------------------
@@ -247,7 +251,11 @@ class Server(ThreadingHTTPServer):
         weights = [o["weight"] for o in chosen]
         entry = self.catalog["scalarizations"][request["scalarization"]]
         loss = Loss(objectives, entry["constructor"](weights))
-        problem = Problem(self.dataset, loss, request["size"])
+        sizing = {
+            name: request[name]
+            for name in ("size", "epsilon", "sizeWeight") if name in request
+        }
+        problem = Problem(self.dataset, loss, **sizing)
 
         entry = self.catalog["algorithms"][request["algorithm"]]
         method = entry["constructor"](**request["settings"])
@@ -384,11 +392,13 @@ class Handler(SimpleHTTPRequestHandler):
                             "settings": node.settings
                         })
             self.sendJSON(200, tree)
-        elif self.path == "/catalog": # the settings of each entry, as JSON
+        elif self.path == "/catalog": # each entry's settings and flags
             catalog = {}
             for section, entries in self.server.catalog.items():
                 catalog[section] = {
-                    name: entry["settings"] for name, entry in entries.items()
+                    name: {key: value for key, value in entry.items()
+                           if key != "constructor"} # all that is servable
+                    for name, entry in entries.items()
                 }
             self.sendJSON(200, catalog)
         else:

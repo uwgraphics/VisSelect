@@ -10,6 +10,10 @@ import {representationNames} from "./transforms.js";
 const selectionControls = document.getElementById("selectionControls");
 const objectives = document.getElementById("objectives");
 const addObjective = document.getElementById("addObjective");
+const sizing = document.getElementById("sizing");
+const sizeParameter = document.getElementById("sizeParameter");
+const sizeParameterField = document.getElementById("sizeParameterField");
+const sizeParameterName = document.getElementById("sizeParameterName");
 const subsetSize = document.getElementById("subsetSize");
 const subsetFeatures = document.getElementById("subsetFeatures");
 const scalarization = document.getElementById("scalarization");
@@ -17,6 +21,7 @@ const scalarization = document.getElementById("scalarization");
 let objectiveSettings = {}; // each objective's settings, from the catalog
 let onChange = () => {}; // called with the number of objectives on a change
 let nextTermId = 0; // numbers the term dropdowns so labels can name them
+let items = 1; // the loaded dataset's rows, bounding a fixed subset size
 
 /**
  * Set up defining the selection from the objectives and scalarizations in
@@ -38,7 +43,23 @@ export function setupSelection(catalog, changed) {
 
     // one objective is no blend, so there is no scalarization to pick yet
     scalarization.closest(".field").hidden = true;
+    sizing.addEventListener("change", () => {
+        // each way of varying the size starts from its own default
+        sizeParameter.value = sizing.value === "epsilon" ? 0.05 : 0.1;
+        showSizing();
+    });
+    fitted(sizing);
+    fitted(sizeParameter);
     fitted(subsetSize);
+
+    // a variable subset size is not set but found, shown once a selection
+    // has a size to show and followed as it is solved
+    document.addEventListener("subsetSized", event => {
+        if (sizing.value === "size") return;
+        subsetSize.closest(".field").hidden = false;
+        subsetSize.value = event.detail.size;
+        subsetSize.dispatchEvent(new Event("input")); // refit it
+    });
 
     // representation choices only appear once there is more than one
     document.addEventListener("representationsChanged", () => {
@@ -61,10 +82,33 @@ export function setupSelection(catalog, changed) {
  * @param {number} columns The dataset's number of features
  */
 export function setSubsetSize(rows, columns) {
-    subsetSize.max = rows - 1;
-    subsetSize.value = Math.min(10, rows - 1);
-    subsetSize.dispatchEvent(new Event("input")); // refit it
+    items = rows;
     subsetFeatures.textContent = columns;
+    showSizing();
+}
+
+/**
+ * Show the fields for the chosen way of setting the subset size: a fixed
+ * size typed in, or a variable one with its parameter beside it, the
+ * epsilon bounding the loss of the smallest subset or the weight balancing
+ * the size against the loss, and the size itself read only and hidden
+ * until a selection finds one
+ */
+function showSizing() {
+    const fixed = sizing.value === "size";
+    sizeParameterField.hidden = fixed;
+    sizeParameterName.textContent =
+        sizing.value === "epsilon" ? "Epsilon" : "Weight";
+    sizeParameter.dispatchEvent(new Event("input")); // refit it
+
+    subsetSize.max = items - 1;
+    subsetSize.readOnly = !fixed;
+    subsetSize.classList.toggle("editable", fixed);
+    subsetSize.closest(".field").hidden = !fixed; // until it is solved
+    subsetSize.value = fixed ? Math.min(10, items - 1) : "";
+    subsetSize.dispatchEvent(new Event("input")); // refit it
+    document.dispatchEvent(new CustomEvent("sizingChanged",
+                                           {detail: {variable: !fixed}}));
 }
 
 /**
@@ -73,15 +117,18 @@ export function setSubsetSize(rows, columns) {
  *     scalarization and the subset size
  */
 export function readSelection() {
-    return {
+    const selection = {
         objectives: [...objectives.children].map(row => ({
             name: row.dataset.objective,
             weight: Number(row.querySelector(".weight input").value),
             settings: readSettings(row),
         })),
         scalarization: scalarization.value,
-        size: Number(subsetSize.value),
     };
+    const fixed = sizing.value === "size";
+    selection[sizing.value] =
+        Number(fixed ? subsetSize.value : sizeParameter.value);
+    return selection;
 }
 
 /**
@@ -112,7 +159,7 @@ function addTerm() {
 
     const formula = document.createElement("span");
     formula.className = "formula fieldValue";
-    formula.append(...formulaParts(name, objectiveSettings[name]));
+    formula.append(...formulaParts(name, objectiveSettings[name].settings));
 
     // which objective the term is, by name, after the term like a note
     const objectiveName = document.createElement("span");

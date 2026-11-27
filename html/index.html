@@ -91,8 +91,35 @@
                     <div id="selectionControls">
                         <p>
                             <span class="field">
-                                <label class="fieldName" for="subsetSize">
+                                <label class="fieldName" for="sizing">
                                     Subset Size
+                                </label>
+                                <span class="fieldValue">
+                                    <select id="sizing" class="editable">
+                                        <option value="size">Fixed</option>
+                                        <option value="epsilon">Epsilon
+                                        </option>
+                                        <option value="sizeWeight">Weighted
+                                        </option>
+                                    </select>
+                                </span>
+                            </span>
+                            <span class="field" id="sizeParameterField"
+                                hidden>
+                                <label class="fieldName"
+                                    id="sizeParameterName"
+                                    for="sizeParameter">
+                                    Epsilon
+                                </label>
+                                <span class="fieldValue">
+                                    <input id="sizeParameter"
+                                        class="editable" type="number"
+                                        min="0" step="any">
+                                </span>
+                            </span>
+                            <span class="field">
+                                <label class="fieldName" for="subsetSize">
+                                    Size
                                 </label>
                                 <span class="fieldValue">
                                     <input id="subsetSize" class="editable"
@@ -141,7 +168,10 @@
                         </p>
                     </div>
                     <div id="lossInformation">
-                        <div id="lossChart"></div>
+                        <div id="lossCharts">
+                            <div id="lossChart"></div>
+                            <div id="sizeChart" hidden></div>
+                        </div>
                         <span id="lossXAxisField" class="fieldValue axisField"
                             hidden>
                             <select id="lossXAxis" class="editable">

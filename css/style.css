@@ -389,8 +389,18 @@ button, input, select, .button {
 }
 
 /* --- Plots ---------------------------------------------------------------- */
-#chart svg, #lossChart svg, #transformGraph svg {
+#chart svg, #lossChart svg, #sizeChart svg, #transformGraph svg {
     display: block;
+}
+#lossCharts {
+    display: flex; /* the subset size beside the loss when it varies */
+}
+#lossCharts > div {
+    flex: 1; /* the loss chart alone takes the whole width */
+    min-width: 0;
+}
+#lossCharts > [hidden] {
+    display: none;
 }
 #plot {
     position: relative;

@@ -132,7 +132,7 @@ function addRow(source, type) {
         for (const old of row.querySelectorAll("[data-transform-setting]")) {
             old.remove();
         }
-        const fields = settingInputs(transforms[choice.value]);
+        const fields = settingInputs(transforms[choice.value].settings);
         for (const field of fields) {
             field.setAttribute("data-transform-setting", "");
         }

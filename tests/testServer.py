@@ -37,6 +37,12 @@ class TestBuildCatalog(unittest.TestCase):
         """Build the catalog of the package"""
         self.catalog = buildCatalog()
 
+    def testVariableSize(self):
+        """Test that algorithms carry whether the size may be variable"""
+        algorithms = self.catalog["algorithms"]
+        self.assertTrue(algorithms["Greedy"]["variableSize"])
+        self.assertFalse(algorithms["Gurobi"]["variableSize"])
+
     def testObjectiveMetric(self):
         """Test that a metric is a setting chosen from the metrics by name"""
         settings = self.catalog["objectives"]["Preserve"]["settings"]
@@ -146,6 +152,27 @@ class TestServer(unittest.TestCase):
             self.assertTrue(lock.acquire(blocking=False))
             lock.release()
 
+    def testSelectVariable(self):
+        """Test that epsilon or sizeWeight requests solve variable sizes"""
+        self.server.generate({"generator": "normal",
+                              "settings": {"size": (20, 2), "seed": 0}})
+        request = {key: value for key, value in self.request.items()
+                   if key != "size"}
+        request |= {"epsilon": 50.0, "algorithm": "Greedy",
+                    "settings": {"seed": 0}}
+        self.server.select(request)
+        self.server.worker.join(timeout=10)
+        ended = self.messages()[-1]
+        self.assertEqual(ended["status"], "finished")
+        self.assertIsNone(ended["total"]) # no declared evaluation count
+
+    def testSelectBothSizes(self):
+        """Test that setting the size two ways at once is rejected"""
+        self.server.generate({"generator": "normal",
+                              "settings": {"size": (20, 2), "seed": 0}})
+        with self.assertRaisesRegex(ValueError, "One of"):
+            self.server.select(self.request | {"epsilon": 0.5})
+
     def testSelect(self):
         """Test that a selection runs and publishes improvements and its end"""
         self.server.generate({"generator": "normal",
@@ -253,7 +280,11 @@ class TestServer(unittest.TestCase):
         """Test that a failing selection publishes its error"""
         def broken(problem, emit):
             raise ValueError("broken algorithm")
-        self.server.run(Solver(broken), None)
+        self.server.generate({"generator": "normal",
+                              "settings": {"size": (20, 2), "seed": 0}})
+        problem = Problem(self.server.dataset,
+                          Loss([objective.Preserve(metric.mean)]), 5)
+        self.server.run(Solver(broken), problem)
         self.assertEqual(self.messages(),
                          [{"status": "failed", "error": "broken algorithm"}])
 
@@ -272,7 +303,11 @@ class TestServer(unittest.TestCase):
         """Test that a selection with no evaluations still publishes its end"""
         def idle(problem, emit):
             pass
-        self.server.run(Solver(idle), None)
+        self.server.generate({"generator": "normal",
+                              "settings": {"size": (20, 2), "seed": 0}})
+        problem = Problem(self.server.dataset,
+                          Loss([objective.Preserve(metric.mean)]), 5)
+        self.server.run(Solver(idle), problem)
         [message] = self.messages()
         self.assertEqual(message["status"], "finished")
         self.assertEqual(message["evaluation"], 0)
@@ -327,11 +362,15 @@ class TestHandler(unittest.TestCase):
             self.assertIn(b"<html", reply.read(200).lower())
 
     def testCatalog(self):
-        """Test that the catalog is served as JSON with settings only"""
+        """Test that the catalog serves settings and flags, no constructors"""
         status, catalog = self.get("/catalog")
         self.assertEqual(status, 200)
         self.assertEqual(catalog.keys(), buildCatalog().keys())
-        self.assertTrue(catalog["algorithms"]["Random"]["samples"]["integer"])
+        random = catalog["algorithms"]["Random"]
+        self.assertTrue(random["settings"]["samples"]["integer"])
+        self.assertFalse(random["variableSize"])
+        self.assertTrue(catalog["algorithms"]["Greedy"]["variableSize"])
+        self.assertNotIn("constructor", random)
 
     def testGenerate(self):
         """Test that generating serves the new dataset back, by feature"""
