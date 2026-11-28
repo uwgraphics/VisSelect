@@ -41,6 +41,7 @@ class Results:
         self._times = []
 
         # Initialize the loss to ∞, time to 0, and the status and subset to None
+        self._evaluations = 0
         self._time = 0.0
         self._loss = np.inf
         self._subset = None
@@ -69,7 +70,8 @@ class Results:
         if np.isnan(time): 
             raise ValueError("Time is NaN")
 
-        if self._log:                
+        self._evaluations += 1
+        if self._log:
             self._losses.append(loss)
             self._times.append(time)
 
@@ -106,6 +108,21 @@ class Results:
         The loss of every evaluation logged in sequential order
         """
         return list(self._losses)
+
+    @property
+    def evaluations(self) -> int:
+        """
+        The number of evaluations recorded so far, counted whether or not
+        they are logged, and cheap enough to read on every callback
+        """
+        return self._evaluations
+
+    @property
+    def times(self) -> list[float]:
+        """
+        The elapsed time of every evaluation logged in sequential order
+        """
+        return list(self._times)
 
     @property
     def loss(self) -> float:

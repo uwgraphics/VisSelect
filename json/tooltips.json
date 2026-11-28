@@ -14,14 +14,16 @@
     "transform": "Add a transform of the dataset's data",
     "applyTransform": "Apply the transform",
     "removeTransform": "Cancel adding this data transform",
-    "transformChoice": "The transform applied to the representation it reads",
-    "transformFrom": "The representation the transform reads",
+    "transformChoice": "The transform applied to the data it reads",
+    "transformFrom": "The transform the new one reads",
     "transformInto": "Where the result is stored",
-    "representation": "The representation the objective is evaluated on",
-    "nodeAdd": "Add a transform of this representation",
-    "nodeRemove": "Remove this representation and everything derived from it",
+    "on": "The transform the objective is evaluated on",
+    "nodeAdd": "Add a transform reading this one",
+    "nodeRemove": "Remove this transform and everything derived from it",
     "chartType": "The type of chart shown",
-    "chartOn": "The representation of the dataset the chart shows",
+    "chartOn": "The transform of the dataset the chart shows",
     "lossXAxis": "The measure of progress along the x axis",
-    "generateDataset": "Generate a dataset from the specified distribution"
+    "generateDataset": "Generate a dataset from the specified distribution",
+    "addFeature": "Add a feature for the transform to keep",
+    "removeFeature": "Remove this feature from those kept"
 }

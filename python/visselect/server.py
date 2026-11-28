@@ -76,11 +76,12 @@ def buildCatalog() -> dict[str, dict[str, dict]]:
             if member.__module__ == module.__name__ # defined, not imported
             and not name.startswith("_")
         }
+    del sections["objectives"]["Objective"] # the base class is not one
 
     # the transform methods of a node, named apart from the tree machinery
     sections["transforms"] = {
         name: getattr(transform.Transform, name)
-        for name in ("scale", "discretize", "encode")
+        for name in ("scale", "discretize", "encode", "select")
     }
 
     # the metric functions in definition order, and if they give a scalar
@@ -95,6 +96,7 @@ def buildCatalog() -> dict[str, dict[str, dict]]:
     ]
 
     # describe each constructor's settings for the page from its signature
+    skippedParameters = ("self", "indices", "name", "features")
     catalog = {}
     for section, constructors in sections.items():
         catalog[section] = {}
@@ -107,13 +109,9 @@ def buildCatalog() -> dict[str, dict[str, dict]]:
             for name, parameter in parameters:
                 if section == "scalarizations" and name == "weights":
                     continue
-                if name == "representation":
+                if name == "on":
                     continue
-
-                # a transform's node and name come from the request's from
-                # and into, and the page applies it to every feature
-                if section == "transforms" and name in ("self", "indices",
-                                                        "name"):
+                if section == "transforms" and name in skippedParameters:
                     continue
 
                 # the default value, or None if the setting is required
@@ -209,9 +207,11 @@ class Server(ThreadingHTTPServer):
 
         entry = self.catalog["transforms"][request["transform"]]
         if request["into"] == "data": # transformed over the data itself
+            # derived apart from the tree, which the new root then fells
             source = self.dataset.node(request["from"])
-            derived = entry["constructor"](source, **request["settings"])
-            self.dataset["data"] = derived.array # a new root fells the tree
+            apart = transform.Transform(source.array, features=source.features)
+            derived = entry["constructor"](apart, **request["settings"])
+            self.dataset["data"] = derived.array
             return
 
         if request["into"] in self.dataset: # replacing fells the stale branch
@@ -361,21 +361,17 @@ class Handler(SimpleHTTPRequestHandler):
             finally:
                 with self.server.listening:
                     self.server.listeners.remove(listener)
-        elif self.path.startswith("/representation?"): # one array, by name
+        elif self.path.startswith("/node?"): # one transform's array, by name
             query = parse_qs(urlparse(self.path).query)
             name = query.get("name", [""])[0]
             try:
-                array = self.server.dataset[name]
-            except (KeyError, TypeError) as e: # TypeError: no dataset loaded
+                node = self.server.dataset.node(name)
+            except (KeyError, AttributeError) as e: # none: no dataset loaded
                 self.sendJSON(400, {"error": str(e)})
                 return
-            # the dataset's feature names only fit an array of the same width
-            same = array.shape[1] == self.server.dataset.size[1]
-            features = (self.server.dataset.features if same
-                        else [str(i) for i in range(array.shape[1])])
             self.sendJSON(200, {
-                "features": features,
-                "data": array.T.tolist()
+                "features": node.features,
+                "data": node.array.T.tolist()
             })
         elif self.path == "/tree": # every stored transform and its lineage
             dataset = self.server.dataset
@@ -424,7 +420,7 @@ class Handler(SimpleHTTPRequestHandler):
                 self.sendJSON(400, {"error": str(e)})
                 return
             self.sendData()
-        elif self.path == "/transform": # Send the transformed representation
+        elif self.path == "/transform": # store a transform of a node
             body = self.rfile.read(int(self.headers["Content-Length"]))
             try:
                 self.server.transform(json.loads(body))

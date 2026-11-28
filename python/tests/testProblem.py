@@ -29,6 +29,16 @@ class TestProblemConstructor(ProblemTestCase):
     Test the Problem class constructor
     """
 
+    def testRejectTextTransform(self):
+        """Test that an objective on a text transform fails at build time"""
+        table = np.array([["a", 1.0], ["b", 2.0], ["c", 3.0]], dtype=object)
+        dataset = Dataset(table)
+        with self.assertRaisesRegex(ValueError, "not numeric"):
+            Problem(dataset, self.loss, size=2) # Preserve reads "data"
+        dataset.root.select(1, name="numbers")
+        loss = Loss([objective.Preserve(metric.mean, on="numbers")])
+        Problem(dataset, loss, size=2) # a numeric transform passes
+
     def testSizeBoundaries(self):
         """Test that sizes < 1 and size ≥ dataset length raise a ValueError"""
         with self.assertRaises(ValueError):

@@ -499,6 +499,7 @@ class Gurobi:
     """
     Selects subsets by applying the Gurobi optimization branch and cut algorithm
     """
+    
     def __init__(
         self,
         tolerance: float = 1e-4,

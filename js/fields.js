@@ -226,7 +226,9 @@ export function fitted(input) {
 /**
  * Read the values of the setting inputs inside an element, by setting name,
  * as numbers, with empty as null and named values such as "inf" kept as text,
- * and the two values of a pair setting together in an array
+ * the two values of a pair setting together in an array, and a control
+ * marked data-text kept as text even when its value looks like a number,
+ * for names such as a transform named after a numbered feature
  * @param {HTMLElement} element The element containing the setting inputs
  * @returns {Object} The value of each setting
  */
@@ -236,6 +238,7 @@ export function readSettings(element) {
         const name = input.dataset.setting;
         const number = Number(input.value);
         const value = input.value === "" ? null
+            : "text" in input.dataset ? input.value // a name, not a number
             : Number.isNaN(number) ? input.value : number;
         if ("pair" in input.dataset) (settings[name] ??= []).push(value);
         else settings[name] = value;

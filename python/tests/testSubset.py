@@ -95,8 +95,8 @@ class TestSubsetProperties(SubsetTestCase):
         with self.assertRaises(ValueError):
             frozen._indicator[1] = True
 
-    def testRepresentation(self):
-        """Test that indexing selects the subset's items of a representation"""
+    def testTransform(self):
+        """Test that indexing selects the subset's items of a transform"""
         self.dataset["doubled"] = self.dataset["data"] * 2
         subset = Subset(self.dataset, self.indicator)
         assert_array_equal(subset["doubled"], self.dataset["data"][[0, 2]] * 2)

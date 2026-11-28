@@ -37,6 +37,13 @@ class TestBuildCatalog(unittest.TestCase):
         """Build the catalog of the package"""
         self.catalog = buildCatalog()
 
+    def testTransforms(self):
+        """Test that the transform methods are offered, select settingless"""
+        transforms = self.catalog["transforms"]
+        self.assertEqual(list(transforms),
+                         ["scale", "discretize", "encode", "select"])
+        self.assertEqual(transforms["select"]["settings"], {})
+
     def testVariableSize(self):
         """Test that algorithms carry whether the size may be variable"""
         algorithms = self.catalog["algorithms"]
@@ -204,7 +211,7 @@ class TestServer(unittest.TestCase):
             self.server.select(self.request)
 
     def testTransform(self):
-        """Test that a transform stores a new representation of the dataset"""
+        """Test that a transform stores a new node of the tree"""
         self.server.generate({"generator": "normal",
                               "settings": {"size": (20, 2), "seed": 0}})
         self.server.transform({"transform": "scale", "from": "data",
@@ -213,6 +220,15 @@ class TestServer(unittest.TestCase):
         self.assertEqual(scaled.shape, (20, 2))
         self.assertEqual(scaled.min(), 0.0)
         self.assertEqual(scaled.max(), 1.0)
+
+    def testTransformSelect(self):
+        """Test that a select request keeps the features the page picked"""
+        self.server.generate({"generator": "normal",
+                              "settings": {"size": (20, 2), "seed": 0}})
+        self.server.transform({"transform": "select", "from": "data",
+                               "into": "second", "settings": {"features": ["1"]}})
+        self.assertEqual(self.server.dataset["second"].shape, (20, 1))
+        self.assertEqual(self.server.dataset.node("second").features, ["1"])
 
     def testTransformReplaces(self):
         """Test that transforming into a stored name fells its branch"""
@@ -320,7 +336,7 @@ class TestHandler(unittest.TestCase):
 
     def setUp(self):
         """Serve on an ephemeral port in a background thread"""
-        root = Path(__file__).resolve().parents[1]
+        root = Path(__file__).resolve().parents[2]
         self.server = Server("127.0.0.1", 0,
                              partial(QuietHandler, directory=str(root)))
         self.addCleanup(self.server.server_close)
@@ -393,7 +409,7 @@ class TestHandler(unittest.TestCase):
         self.assertEqual(reply["features"], ["a", "b"])
         self.assertEqual(reply["size"], [2, 2])
 
-        status, reply = self.post("/dataset", "a,b\nx,y\n")
+        status, reply = self.post("/dataset", "a,b\n1,2\n3\n")
         self.assertEqual(status, 400)
 
     def testTransform(self):
@@ -422,20 +438,20 @@ class TestHandler(unittest.TestCase):
             "settings": {"interval": [0.0, 1.0], "indices": None}
         }])
 
-    def testRepresentation(self):
-        """Test that a representation is served by name with its features"""
+    def testNode(self):
+        """Test that a transform's array is served by name with its features"""
         self.generate()
-        status, reply = self.get("/representation?name=data")
+        status, reply = self.get("/node?name=data")
         self.assertEqual(status, 200)
         self.assertEqual(len(reply["features"]), 2)
         self.assertEqual(len(reply["data"]), 2)
 
-        status, reply = self.get("/representation?name=missing")
+        status, reply = self.get("/node?name=missing")
         self.assertEqual(status, 400)
         self.assertIn("error", reply)
 
     def testRemove(self):
-        """Test that removing a representation serves back the confirmation"""
+        """Test that removing a transform serves back the confirmation"""
         self.generate()
         self.post("/transform", {"transform": "scale", "from": "data",
                                  "into": "scaled", "settings": {}})

@@ -60,10 +60,10 @@ class TestPreserve(ObjectiveTestCase):
         preserve = objective.Preserve(np.sum)
         self.assertEqual(preserve(self.subset), 6.0)
 
-    def testRepresentation(self):
-        """Test that a named representation is preserved, not the data"""
+    def testOn(self):
+        """Test that a named transform is preserved, not the data"""
         self.dataset["doubled"] = self.dataset["data"] * 2
-        preserve = objective.Preserve(metric.mean, representation="doubled")
+        preserve = objective.Preserve(metric.mean, on="doubled")
         self.assertEqual(preserve(self.subset), 2 * 3 * 1.5)
 
     def testReuseAcrossDatasets(self):
@@ -164,6 +164,21 @@ class TestEnergyDistance(unittest.TestCase):
         energy = objective.EnergyDistance()
         self.assertLess(energy(Subset(dataset, both)),
                         energy(Subset(dataset, one)))
+
+    def testMatchesDirectFormula(self):
+        """Test that the cached between term matches the direct evaluation"""
+        from scipy.spatial.distance import cdist
+        rng = np.random.default_rng(1)
+        data = rng.normal(size=(30, 3))
+        dataset = Dataset(data)
+        indicator = rng.random(30) < 0.3
+        chosen = data[indicator]
+        direct = (2 * cdist(chosen, data).mean()
+                  - cdist(chosen, chosen).mean())
+        energy = objective.EnergyDistance()
+        subset = Subset(dataset, indicator)
+        self.assertAlmostEqual(energy(subset), direct, places=12)
+        self.assertAlmostEqual(energy(subset), direct, places=12) # cached
 
 
 @unittest.skipUnless(POT, "POT is not installed")
@@ -313,11 +328,11 @@ class TestDiscreteCoverage(unittest.TestCase):
             coverage(Subset(dataset, np.array([True, False, True]))), 0.0)
 
     def testEncoded(self):
-        """Test coverage over a discretized and encoded representation"""
+        """Test coverage over a discretized and encoded transform"""
         dataset = Dataset(np.array([[0.0], [5.0], [10.0]]))
         root = transform.Transform(dataset["data"])
         dataset["encoded"] = root.discretize(bins=2).encode().array
-        coverage = objective.DiscreteCoverage(representation="encoded")
+        coverage = objective.DiscreteCoverage(on="encoded")
         self.assertEqual(
             coverage(Subset(dataset, np.array([True, False, False]))), 0.5)
         self.assertEqual(
@@ -328,7 +343,7 @@ class TestDiscreteCoverage(unittest.TestCase):
         dataset = Dataset(np.array([[0.0], [5.0], [10.0]]))
         root = transform.Transform(dataset["data"])
         dataset["discretized"] = root.discretize(bins=3).array
-        coverage = objective.DiscreteCoverage(representation="discretized")
+        coverage = objective.DiscreteCoverage(on="discretized")
         with self.assertRaisesRegex(ValueError, "one hot"):
             coverage(Subset(dataset, np.array([True, True, False])))
 

@@ -5,7 +5,7 @@ import {
     fitted, label, lockControls, options, readSettings, tip
 } from "./fields.js";
 import {formulaParts, isNegative} from "./formula.js";
-import {representationNames} from "./transforms.js";
+import {transformNames} from "./transforms.js";
 
 const selectionControls = document.getElementById("selectionControls");
 const objectives = document.getElementById("objectives");
@@ -61,10 +61,10 @@ export function setupSelection(catalog, changed) {
         subsetSize.dispatchEvent(new Event("input")); // refit it
     });
 
-    // representation choices only appear once there is more than one
-    document.addEventListener("representationsChanged", () => {
-        const hidden = representationNames().length < 2;
-        for (const field of objectives.querySelectorAll(".representation")) {
+    // the On choices only appear once there is more than one
+    document.addEventListener("transformsChanged", () => {
+        const hidden = transformNames().length < 2;
+        for (const field of objectives.querySelectorAll(".onField")) {
             field.hidden = hidden;
             if (hidden) { // only the data is left to evaluate on
                 const select = field.querySelector("select");
@@ -180,7 +180,7 @@ function addTerm() {
     });
 
     row.append(
-        lead, weightField(), formula, objective, representationField(),
+        lead, weightField(), formula, objective, onField(),
         remove
     );
     objectives.append(row);
@@ -236,19 +236,20 @@ function weightField() {
 }
 
 /**
- * Create a term's representation field: which representation of the dataset
- * the objective evaluates, refreshed from the live names whenever it is
- * opened, since transforms store new representations after the term is added
- * @returns {HTMLSpanElement} The representation's field
+ * Create a term's On field: which transform of the dataset the objective
+ * evaluates, refreshed from the live names whenever it is opened, since
+ * transforms store new nodes after the term is added
+ * @returns {HTMLSpanElement} The On field
  */
-function representationField() {
+function onField() {
     const select = document.createElement("select");
     select.className = "editable";
-    select.id = `representation${nextTermId++}`;
-    select.dataset.setting = "representation";
-    select.title = tip("representation");
+    select.id = `on${nextTermId++}`;
+    select.dataset.setting = "on";
+    select.dataset.text = ""; // the name stays text, even a numeric one
+    select.title = tip("on");
     const refresh = () => {
-        const names = representationNames();
+        const names = transformNames();
         const value = select.value;
         select.replaceChildren(...names.map(name => new Option(name)));
         select.value = names.includes(value) ? value : "data";
@@ -262,16 +263,16 @@ function representationField() {
     // value, so the value sits on the term's baseline
     const fieldName = document.createElement("label");
     fieldName.className = "fieldName tokenLabel";
-    fieldName.textContent = label("representation");
+    fieldName.textContent = label("on");
     fieldName.htmlFor = select.id;
     const fieldValue = document.createElement("span");
     fieldValue.className = "fieldValue"; // strips the dropdown's own chrome
-    fieldValue.dataset.label = label("representation"); // the width keeper
+    fieldValue.dataset.label = label("on"); // the width keeper
     fieldValue.append(fitted(select));
     const field = document.createElement("span");
-    field.className = "representation";
+    field.className = "onField";
     field.append(fieldName, fieldValue);
-    field.hidden = representationNames().length < 2;
+    field.hidden = transformNames().length < 2;
     return field;
 }
 

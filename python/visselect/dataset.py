@@ -41,7 +41,7 @@ class Dataset:
             TypeError: If data cannot be converted to a NumPy ndarray
             ValueError: If data is not 2D, data has no rows/columns, length of
                 features and data columns differ, features has duplicates, or
-                a csv file is empty or has non-numeric or ragged rows
+                a csv file is empty or has ragged rows
             FileNotFoundError: If a csv file path does not exist
         """
         self._characteristics = {}
@@ -79,12 +79,11 @@ class Dataset:
         if features is not None:
             if len(features) != data.shape[1]:
                 raise ValueError("Lengths of features and data columns differ")
-            if len(set(features)) != len(features): 
+            if len(set(features)) != len(features):
                 raise ValueError("Features list contains duplicates")
-            self._features = list(features)
 
-        # the root of the transforms tree holding the data
-        self._root = Transform(data)
+        # the root of the transforms tree holds the data and its features
+        self._root = Transform(data, features=features)
 
     def __getattr__(self, name: str) -> Any:
         """
@@ -130,10 +129,12 @@ class Dataset:
             raise ValueError("Lengths of array rows and dataset differ")
 
         if name == "data":
-            if array.shape[1] != self.size[1]:
-                if hasattr(self, "_features"):
-                    del self._features
-            self._root = Transform(array) # replacing fells the whole tree
+            # the feature names only fit data of the same number of features
+            same = array.shape[1] == self.size[1]
+            features = self.features if same else None
+            
+            # replacing fells the whole tree
+            self._root = Transform(array, features=features)
             self._characteristics = {}
             return
 
@@ -228,7 +229,8 @@ class Dataset:
         source: str | PathLike | TextIO
     ) -> tuple[np.ndarray, list[str]]:
         """
-        Reads a dataset from a csv file with a header row of feature names
+        Reads a dataset from a csv file with a header row of feature names:
+        a column of numbers is numeric, and any other column stays text
 
         Args:
             source: A path to a csv file, or a text stream of a csv file which
@@ -236,7 +238,7 @@ class Dataset:
 
         Raises:
             FileNotFoundError: If a filepath is passed but does not exist
-            ValueError: If the file is empty or has non-numeric or ragged rows
+            ValueError: If the file is empty or has ragged rows
         """
         if isinstance(source, (str, PathLike)): # open paths, use streams as is
             context = open(source, encoding="utf-8")
@@ -248,9 +250,25 @@ class Dataset:
             if not line.strip():
                 raise ValueError("File is empty")
             header = next(csv.reader([line]))
-            data = np.loadtxt(file, delimiter=",", ndmin=2)
+            rows = list(csv.reader(file))
 
-        return data, header
+        for row in rows:
+            if len(row) != len(header):
+                raise ValueError("File has ragged rows")
+
+        table = np.array(rows, dtype=object).reshape(len(rows), len(header))
+        for index in range(table.shape[1]):
+            try:
+                table[:, index] = table[:, index].astype(float)
+            except ValueError: # a column that is not all numbers stays text
+                pass
+
+        try: # a table of only numeric columns is a plain numeric array
+            table = table.astype(float)
+        except ValueError:
+            pass # a text column keeps the table mixed
+
+        return table, header
 
     def evaluate(self, function: Callable, name: str = "data") -> Any:
         """
@@ -274,9 +292,7 @@ class Dataset:
         """
         The feature names of the dataset columns
         """
-        if not hasattr(self, "_features"):
-            self._features = [str(i) for i in range(self.size[1])]
-        return self._features
+        return self._root.features
 
     @property
     def root(self) -> Transform:

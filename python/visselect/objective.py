@@ -20,9 +20,31 @@ from .dataset import Dataset
 from .subset import Subset
 
 
-# --- Preserve Metric Objective ------------------------------------------------
+# --- Objective Classes --------------------------------------------------------
 
-class Preserve:
+class Objective:
+    """
+    Base class of the objectives, holding the transform they evaluate on
+    """
+
+    def __init__(self, on: str = "data") -> None:
+        """
+        Initialize an objective
+
+        Args:
+            on: The name of the transform to run the objective on
+        """
+        self._on = on
+
+    @property
+    def on(self) -> str:
+        """
+        The name of the transform the objective is evaluated on
+        """
+        return self._on
+
+
+class Preserve(Objective):
     """
     Minimize the difference between the dataset and subset in terms of a metric
     """
@@ -31,7 +53,7 @@ class Preserve:
         self,
         metric: Callable,
         p: int | str = 1,
-        representation: str = "data"
+        on: str = "data"
     ) -> None:
         """
         Initialize a metric preserving objective
@@ -39,8 +61,7 @@ class Preserve:
         Args:
             metric: The metric applied to the data to preserve in the subset
             p: The order of the norm of the difference between metrics: 1, 2, ∞
-            representation: The name of the representation evaluated, or
-                "data" for the data itself
+            on: The name of the transform to run the objective on
 
         Raises:
             TypeError: If metric is not callable
@@ -48,9 +69,9 @@ class Preserve:
         if not callable(metric):
             raise TypeError("Metric is not a callable function")
 
+        super().__init__(on)
         self._metric = metric
         self._p = p
-        self._representation = representation
 
     def __call__(
         self,
@@ -62,9 +83,8 @@ class Preserve:
         Args:
             subset: The subset to evaluate the distance from the target
         """
-        datasetMetric = subset.dataset.evaluate(self._metric,
-                                                self._representation)
-        subsetMetric = self._metric(subset[self._representation])
+        datasetMetric = subset.dataset.evaluate(self._metric, self._on)
+        subsetMetric = self._metric(subset[self._on])
 
         # If the metric results are scalars, use the absolute difference
         if np.ndim(datasetMetric) == 0:
@@ -95,8 +115,8 @@ class Preserve:
         if self._metric is not metric.mean or self._p != 1:
             raise ValueError(f"No encoding for metric {self._metric.__name__}")
 
-        data = dataset[self._representation]
-        datasetMetric = dataset.evaluate(self._metric, self._representation)
+        data = dataset[self._on]
+        datasetMetric = dataset.evaluate(self._metric, self._on)
         subsetMetric = (data.T @ z) / size # constant size fixed
 
         # per-feature absolute differences linearized with nonnegative t
@@ -106,22 +126,10 @@ class Preserve:
         return t.sum()
 
 
-# --- Distinctness Objective ---------------------------------------------------
-
-class Distinctness:
+class Distinctness(Objective):
     """
     Maximize the distance from each item in the subset to its nearest neighbor
     """
-
-    def __init__(self, representation: str = "data") -> None:
-        """
-        Initialize a distinctness objective
-
-        Args:
-            representation: The name of the representation evaluated, or
-                "data" for the data itself
-        """
-        self._representation = representation
 
     def __call__(
         self,
@@ -133,7 +141,7 @@ class Distinctness:
         Args:
             subset: The subset to evaluate the distinctness of
         """
-        data = subset[self._representation]
+        data = subset[self._on]
         if data.shape[0] < 2: # a lone item has no neighbor to differ from
             return 0.0
         distances = cdist(data, data)
@@ -142,23 +150,11 @@ class Distinctness:
         return -np.sum(np.min(distances, axis=1))
 
 
-# --- Crossings Objective ------------------------------------------------------
-
-class Crossings:
+class Crossings(Objective):
     """
     Minimize the rate of line crossings the subset draws between the
     neighboring axes of a parallel coordinates chart
     """
-
-    def __init__(self, representation: str = "data") -> None:
-        """
-        Initialize a crossings objective
-
-        Args:
-            representation: The name of the representation evaluated, or
-                "data" for the data itself
-        """
-        self._representation = representation
 
     def __call__(
         self,
@@ -172,7 +168,7 @@ class Crossings:
         Args:
             subset: The subset to evaluate the crossings of
         """
-        data = subset[self._representation]
+        data = subset[self._on]
         items, features = data.shape
         if items < 2 or features < 2: # nothing can cross
             return 0.0
@@ -189,23 +185,11 @@ class Crossings:
         return float(crossings / (items * (items - 1) * (features - 1)))
 
 
-# --- Energy Distance Objective ------------------------------------------------
-
-class EnergyDistance:
+class EnergyDistance(Objective):
     """
     Minimize the energy distance between the distributions of the subset and
     the dataset
     """
-
-    def __init__(self, representation: str = "data") -> None:
-        """
-        Initialize an energy distance objective
-
-        Args:
-            representation: The name of the representation evaluated, or
-                "data" for the data itself
-        """
-        self._representation = representation
 
     def __call__(
         self,
@@ -214,39 +198,47 @@ class EnergyDistance:
         """
         Evaluate the energy distance between the distributions of the subset
         and the dataset (Székely and Rizzo, 2013), up to the dataset's own
-        mean pairwise distance, a constant no selection changes
+        mean pairwise distance
 
         Args:
             subset: The subset to evaluate the distribution distance of
         """
-        data = subset[self._representation]
-        between = cdist(data, subset.dataset[self._representation]).mean()
+        means = subset.dataset.evaluate(self._meanDistances, self._on)
+        between = np.compress(subset.indicator, means).mean()
+        data = subset[self._on]
         within = cdist(data, data).mean()
         return 2.0 * between - within
 
+    def _meanDistances(self, data: np.ndarray) -> np.ndarray:
+        """
+        Compute the mean distance from each item to the whole dataset,
+        a per-item constant no selection changes
 
-# --- Earth Mover's Distance Objective -----------------------------------------
+        Args:
+            data: The data array of the dataset
+        """
+        return cdist(data, data).mean(axis=1)
 
-class EarthMoversDistance:
+
+class EarthMoversDistance(Objective):
     """
     Minimize the earth mover's distance between the distributions of the
     subset and the dataset
     """
 
-    def __init__(self, representation: str = "data") -> None:
+    def __init__(self, on: str = "data") -> None:
         """
         Initialize an earth mover's distance objective
 
         Args:
-            representation: The name of the representation evaluated, or
-                "data" for the data itself
+            on: The name of the transform to run the objective on
 
         Raises:
             ImportError: if POT is not installed
         """
         if ot is None:
             raise ImportError("EarthMoversDistance requires POT")
-        self._representation = representation
+        super().__init__(on)
 
     def __call__(
         self,
@@ -260,14 +252,12 @@ class EarthMoversDistance:
         Args:
             subset: The subset to evaluate the distribution distance of
         """
-        data = subset[self._representation]
-        dataset = subset.dataset[self._representation]
+        data = subset[self._on]
+        dataset = subset.dataset[self._on]
         return float(ot.emd2([], [], cdist(data, dataset)))
 
 
-# --- Outliers Objective -------------------------------------------------------
-
-class Outliers:
+class Outliers(Objective):
     """
     Maximize how outlying the items of the subset are in the dataset
     """
@@ -275,24 +265,22 @@ class Outliers:
     def __init__(
         self,
         neighbors: int = 20,
-        representation: str = "data"
+        on: str = "data"
     ) -> None:
         """
         Initialize an outliers objective
 
         Args:
-            neighbors: The number of nearest neighbors each item's local
-                outlier factor considers
-            representation: The name of the representation evaluated, or
-                "data" for the data itself
+            neighbors: The number of nearest neighbors each item considers
+            on: The name of the transform to run the objective on
 
         Raises:
             ValueError: If neighbors is less than 1
         """
         if neighbors < 1:
             raise ValueError("Neighbors is less than 1")
+        super().__init__(on)
         self._neighbors = neighbors
-        self._representation = representation
 
     def __call__(
         self,
@@ -307,8 +295,7 @@ class Outliers:
         Raises:
             ValueError: If the dataset does not have more items than neighbors
         """
-        factors = subset.dataset.evaluate(self._factors,
-                                          self._representation)
+        factors = subset.dataset.evaluate(self._factors, self._on)
         return -np.sum(np.compress(subset.indicator, factors))
 
     def _factors(self, data: np.ndarray) -> np.ndarray:
@@ -335,9 +322,7 @@ class Outliers:
         return np.sum(density[neighbors], axis=1) / k / density
 
 
-# --- Cluster Centers Objective ------------------------------------------------
-
-class ClusterCenters:
+class ClusterCenters(Objective):
     """
     Minimize the distance from each cluster center of the dataset to the
     item of the subset nearest to it
@@ -347,7 +332,7 @@ class ClusterCenters:
         self,
         k: int = 5,
         seed: int | None = None,
-        representation: str = "data"
+        on: str = "data"
     ) -> None:
         """
         Initialize a cluster centers objective
@@ -355,17 +340,16 @@ class ClusterCenters:
         Args:
             k: The number of cluster centers the subset represents
             seed: The random seed for reproducibility
-            representation: The name of the representation evaluated, or
-                "data" for the data itself
+            on: The name of the transform to run the objective on
 
         Raises:
             ValueError: If k is less than 1
         """
         if k < 1:
             raise ValueError("k is less than 1")
+        super().__init__(on)
         self._k = k
         self._seed = seed
-        self._representation = representation
 
     def __call__(
         self,
@@ -381,8 +365,8 @@ class ClusterCenters:
         Raises:
             ValueError: If the dataset does not have more items than k
         """
-        centers = subset.dataset.evaluate(self._centers, self._representation)
-        data = subset[self._representation]
+        centers = subset.dataset.evaluate(self._centers, self._on)
+        data = subset[self._on]
         return cdist(centers, data).min(axis=1).sum()
 
     def _centers(self, data: np.ndarray) -> np.ndarray:
@@ -405,23 +389,11 @@ class ClusterCenters:
         return centers
 
 
-# --- Discrete Coverage Objective ----------------------------------------------
-
-class DiscreteCoverage:
+class DiscreteCoverage(Objective):
     """
     Minimize the share of the dataset's categories the subset leaves
-    uncovered, over a one hot encoded representation
+    uncovered, over a one hot encoded transform
     """
-
-    def __init__(self, representation: str = "data") -> None:
-        """
-        Initialize a discrete coverage objective
-
-        Args:
-            representation: The name of the one hot encoded representation
-                evaluated, or "data" for the data itself
-        """
-        self._representation = representation
 
     def __call__(
         self,
@@ -435,11 +407,10 @@ class DiscreteCoverage:
             subset: The subset to evaluate the coverage of
 
         Raises:
-            ValueError: If the representation is not one hot encoded
+            ValueError: If the transform is not one hot encoded
         """
-        categories = subset.dataset.evaluate(self._categories,
-                                             self._representation)
-        data = subset[self._representation]
+        categories = subset.dataset.evaluate(self._categories, self._on)
+        data = subset[self._on]
         covered = np.count_nonzero(data.any(axis=0))
         return 1.0 - covered / categories
 
@@ -454,5 +425,5 @@ class DiscreteCoverage:
             ValueError: If the array holds values other than 0 and 1
         """
         if np.any((data != 0) & (data != 1)):
-            raise ValueError("Representation is not one hot encoded")
+            raise ValueError("Transform is not one hot encoded")
         return data.shape[1]

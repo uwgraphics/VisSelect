@@ -29,9 +29,11 @@
     "order": "Order",
     "quantile": "Quantile",
     "kmeans": "K-Means",
-    "representation": "On",
+    "on": "On",
     "ClusterCenters": "Cluster Centers",
     "tolerance": "Tolerance",
     "EarthMoversDistance": "Earth Mover's Distance",
-    "DiscreteCoverage": "Discrete Coverage"
+    "DiscreteCoverage": "Discrete Coverage",
+    "select": "Select",
+    "features": "Features"
 }

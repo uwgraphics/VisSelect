@@ -38,7 +38,10 @@ class Problem:
         Raises:
             ValueError: if none or several of size, epsilon and sizeWeight
                 are given, size is < 1 or ≥ dataset length, epsilon
-                is negative, or sizeWeight is not positive
+                is negative, sizeWeight is not positive, or an objective's
+                transform is not numeric
+            KeyError: if an objective names a transform the dataset does
+                not have
         """
         given = [value for value in (size, epsilon, sizeWeight)
                  if value is not None]
@@ -56,6 +59,12 @@ class Problem:
             raise ValueError("Epsilon is negative")
         if sizeWeight is not None and sizeWeight <= 0:
             raise ValueError("Size weight is not positive")
+
+        # objectives compute on numbers
+        for objective in loss.objectives:
+            name = getattr(objective, "on", None)
+            if name is not None and dataset[name].dtype.kind in "OUS":
+                raise ValueError(f"Transform {name} is not numeric")
 
         self._dataset = dataset
         self._loss = loss

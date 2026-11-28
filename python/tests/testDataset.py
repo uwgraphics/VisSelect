@@ -62,10 +62,30 @@ class TestDatasetConstructor(unittest.TestCase):
                 assert_array_equal(dataset["data"], [[1.0, 2.0], [3.0, 4.0]])
                 self.assertEqual(dataset.features, ["a", "b"])
 
+    def testInitMixed(self):
+        """Test that text columns load as text beside numeric columns"""
+        dataset = Dataset(io.StringIO(
+            'name,games\n"Defense, Balogh",692\nBrooklyn,228\n'))
+        self.assertEqual(dataset.features, ["name", "games"])
+        self.assertEqual(dataset["data"].dtype, object)
+        self.assertEqual(list(dataset["data"][:, 0]),
+                         ["Defense, Balogh", "Brooklyn"])
+        self.assertEqual(dataset["data"][0, 1], 692.0)
+
     def testRejectEmptyFile(self):
         """Test that an empty csv file raises a ValueError"""
         with self.assertRaises(ValueError):
             Dataset(io.StringIO(""))
+
+    def testRejectRaggedFile(self):
+        """Test that a csv file with ragged rows raises a ValueError"""
+        with self.assertRaises(ValueError):
+            Dataset(io.StringIO("a,b\n1,2\n3\n"))
+
+    def testMixedColumnStaysText(self):
+        """Test that a column of text and numbers loads whole as text"""
+        dataset = Dataset(io.StringIO("a,b\n1,x\n2,3\n"))
+        self.assertEqual(list(dataset["data"][:, 1]), ["x", "3"])
 
     def testReject1DArray(self):
         """Test that a 1D Numpy array raises a ValueError"""
@@ -182,7 +202,7 @@ class TestDatasetCharacteristics(unittest.TestCase):
         self.assertIs(self.dataset.mean, value)
 
     def testCharacteristicData(self):
-        """Test that the name skips characteristics of other representations"""
+        """Test that the name skips characteristics of other transforms"""
         self.dataset["doubled"] = self.dataset["data"] * 2
         self.dataset.evaluate(metric.mean, "doubled")
         value = self.dataset.evaluate(metric.mean)
@@ -211,9 +231,9 @@ class TestDatasetCharacteristics(unittest.TestCase):
         with self.assertRaises(AttributeError):
             self.dataset._help
 
-class TestDatasetRepresentations(unittest.TestCase):
+class TestDatasetTransforms(unittest.TestCase):
     """
-    Test the Dataset representation tree: branches, replacing, and evaluation
+    Test the Dataset transform tree: branches, replacing, and evaluation
     """
 
     def setUp(self):
@@ -222,23 +242,31 @@ class TestDatasetRepresentations(unittest.TestCase):
         self.dataset = Dataset(self.data)
 
     def testStore(self):
-        """Test that a stored representation is returned by its name"""
-        representation = np.zeros((3, 5))
-        self.dataset["wide"] = representation
-        self.assertTrue(np.shares_memory(self.dataset["wide"], representation))
+        """Test that a stored transform is returned by its name"""
+        array = np.zeros((3, 5))
+        self.dataset["wide"] = array
+        self.assertTrue(np.shares_memory(self.dataset["wide"], array))
 
     def testDefault(self):
         """Test that indexing by data returns the dataset's own data"""
         self.assertTrue(np.shares_memory(self.dataset["data"], self.data))
 
     def testImmutable(self):
-        """Test that a representation is read only but its source stays open"""
-        representation = np.zeros((3, 2))
-        self.dataset["rep"] = representation
+        """Test that a transform is read only but its source stays open"""
+        array = np.zeros((3, 2))
+        self.dataset["rep"] = array
         with self.assertRaises(ValueError):
             self.dataset["rep"][0, 0] = 1
-        representation[0, 0] = 1
-        self.assertEqual(representation[0, 0], 1)
+        array[0, 0] = 1
+        self.assertEqual(array[0, 0], 1)
+
+    def testMixedTable(self):
+        """Test that a table with identity columns loads, selectable apart"""
+        table = np.array([["a", 1.0], ["b", 2.0], ["c", 3.0]], dtype=object)
+        dataset = Dataset(table, features=["name", "x"])
+        self.assertEqual(dataset.root.select("x").array.dtype, float)
+        dataset.root.select("name")
+        self.assertEqual(dataset["name"].tolist(), [["a"], ["b"], ["c"]])
 
     def testRejectRows(self):
         """Test that a row count mismatch raises a ValueError"""
@@ -258,7 +286,7 @@ class TestDatasetRepresentations(unittest.TestCase):
         self.assertNotIn("missing", self.dataset)
 
     def testEvaluateName(self):
-        """Test that a characteristic is cached per representation name"""
+        """Test that a characteristic is cached per transform name"""
         self.dataset["doubled"] = self.data * 2
         assert_array_equal(self.dataset.evaluate(metric.mean), [3.0, 4.0])
         assert_array_equal(self.dataset.evaluate(metric.mean, "doubled"),

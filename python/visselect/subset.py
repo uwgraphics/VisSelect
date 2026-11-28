@@ -52,14 +52,14 @@ class Subset:
 
     def __getitem__(self, name: str) -> np.ndarray:
         """
-        The items selected in the subset from a named representation of the
+        The items selected in the subset from a named transform of the
         dataset, or from the data itself by "data"
 
         Args:
-            name: The name of the representation, or "data" for the data
+            name: The name of the transform, or "data" for the data
 
         Raises:
-            KeyError: If no representation is stored under the name
+            KeyError: If no transform is stored under the name
         """
         return np.compress(self._indicator, self._dataset[name], axis=0)
 

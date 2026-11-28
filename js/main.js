@@ -2,7 +2,9 @@
 // them: loading a dataset shows it everywhere, defining the selection decides
 // whether it can run, and a running selection locks the rest of the page
 
-import {setupCharts, showData, showFeatures} from "./charts.js";
+import {
+    numericFeatures, setupCharts, showData, showFeatures
+} from "./charts.js";
 import {setDatasetLocked, setupDataset} from "./dataset.js";
 import {
     readSelection, setSelectionLocked, setSubsetSize, setupSelection
@@ -42,8 +44,9 @@ function showTransformed(reply) {
     resetOptimization();
     setSubsetSize(rows, columns);
     for (const section of sections) section.hidden = false;
-    showFeatures(reply.features);
-    showData(reply.data);
+    const {names, values} = numericFeatures(reply.features, reply.data);
+    showFeatures(names);
+    showData(values);
 }
 
 /**

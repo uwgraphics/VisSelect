@@ -293,18 +293,18 @@ button, input, select, .button {
     margin-left: var(--group-space);
     position: relative; /* anchors its name, the Objective above it */
 }
-#objectives .representation {
+#objectives .onField {
     grid-column: 5;
     margin-left: var(--group-space);
     position: relative;
 }
-#objectives .representation .fieldValue {
+#objectives .onField .fieldValue {
     display: inline-grid;
 }
-#objectives .representation .fieldValue > .fit {
+#objectives .onField .fieldValue > .fit {
     grid-area: 1 / 1;
 }
-#objectives .representation .fieldValue::after {
+#objectives .onField .fieldValue::after {
     content: attr(data-label);
     grid-area: 1 / 1;
     visibility: hidden;
@@ -320,6 +320,12 @@ button, input, select, .button {
 }
 
 /* --- Transform Graph ------------------------------------------------------ */
+#datasetTransforms .feature { /* a picked feature, its × close behind */
+    margin-right: var(--row-space);
+}
+#datasetTransforms .feature .remove {
+    margin-left: 2px;
+}
 #transformGraph {
     margin-top: var(--group-space);
 }

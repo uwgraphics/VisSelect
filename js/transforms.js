@@ -1,6 +1,6 @@
-// The Apply Transforms section: a tree of representations of the dataset,
+// The Apply Transforms section: a tree of transforms of the dataset,
 // drawn as a graph once a transform is applied; + on a node sets up a
-// transform of that representation and × removes a leaf, and while a
+// transform reading that node and × removes a leaf, and while a
 // transform is set up its row takes the graph's place until it is applied
 
 import {
@@ -46,16 +46,16 @@ export function setupTransforms(catalog, applied) {
 
 /**
  * The names an objective can evaluate a subset on: the data itself and
- * every stored representation, in the order they were created
+ * every stored transform, in the order they were created
  * @returns {string[]} The names
  */
-export function representationNames() {
+export function transformNames() {
     return ["data", ...nodes.map(node => node.name)];
 }
 
 /**
  * Remove the whole tree, drawn or being set up, when a new dataset
- * replaces the representations it described
+ * replaces the transforms it described
  */
 export function resetTransforms() {
     for (const row of section.querySelectorAll("p")) row.remove();
@@ -70,11 +70,11 @@ export function resetTransforms() {
 }
 
 /**
- * Tell the rest of the page that the stored representations changed, so
+ * Tell the rest of the page that the stored transforms changed, so
  * controls naming them can follow
  */
 function announce() {
-    document.dispatchEvent(new CustomEvent("representationsChanged"));
+    document.dispatchEvent(new CustomEvent("transformsChanged"));
 }
 
 /**
@@ -91,9 +91,9 @@ export function setTransformsLocked(running) {
 }
 
 /**
- * Add a row to set up a transform of one representation, taking the place
- * of the graph until it is applied from the heading or removed with its ×
- * @param {string} source The name of the representation the transform reads
+ * Add a row to set up a transform of one node, taking the place of the
+ * graph until it is applied from the heading or removed with its ×
+ * @param {string} source The name of the transform the new one reads
  * @param {string} [type] The transform chosen up front, still changeable
  */
 function addRow(source, type) {
@@ -109,22 +109,92 @@ function addRow(source, type) {
     // the source the + was clicked on, kept in view while the graph is not
     const from = infoField("From", source);
 
+    // select keeps features of the source, picked from a dropdown into a
+    // row of chips, each removable, kept in the order they were picked
+    const picked = [];
+    const chips = document.createElement("span");
+    const addFeature = document.createElement("select");
+    addFeature.className = "editable";
+    addFeature.id = `transformFeatures${rowId}`;
+    addFeature.title = tip("addFeature");
+
     // the result's name starts as the transform's natural branch name, and
-    // follows the transform choice until a name is typed over it
+    // follows the transform choice until a name is typed over it; select
+    // is named for its one feature, or "selected" when it keeps several
     const into = document.createElement("input");
     into.type = "text";
     into.className = "editable";
     into.id = `transformInto${rowId}`;
-    let autoName = `${choice.value}d`;
+    const defaultName = () => choice.value === "select"
+        ? (picked.length === 1 ? picked[0] : "selected")
+        : `${choice.value}d`;
+    let autoName = defaultName();
     into.value = autoName;
-    choice.addEventListener("change", () => {
-        const name = `${choice.value}d`;
+    const followName = () => {
+        const name = defaultName();
         if (into.value === autoName) {
             into.value = name;
             into.dispatchEvent(new Event("input")); // refit it
         }
         autoName = name;
+    };
+    choice.addEventListener("change", followName);
+
+    // the picked features as chips, and the rest left in the dropdown
+    function showPicked() {
+        chips.replaceChildren(...picked.map(feature => {
+            const drop = document.createElement("button");
+            drop.type = "button";
+            drop.className = "remove";
+            drop.title = tip("removeFeature");
+            drop.textContent = "×";
+            drop.addEventListener("click", () => {
+                picked.splice(picked.indexOf(feature), 1);
+                showPicked();
+            });
+            const chip = document.createElement("span");
+            chip.className = "feature";
+            chip.append(feature, drop);
+            return chip;
+        }));
+        const left = features.filter(feature => !picked.includes(feature));
+        addFeature.replaceChildren(
+            new Option("Add Feature", "", true, true),
+            ...left.map(feature => new Option(feature)));
+        addFeature.options[0].disabled = true;
+        addFeature.hidden = !left.length; // every feature is picked
+        followName();
+    }
+    addFeature.addEventListener("change", () => {
+        picked.push(addFeature.value);
+        showPicked();
     });
+
+    // the picker only shows for select, with the source's features
+    // fetched the first time it does
+    let features = [];
+    let fetched = false;
+    const picker = document.createElement("span");
+    picker.className = "field";
+    picker.hidden = true;
+    const pickerName = document.createElement("label");
+    pickerName.className = "fieldName";
+    pickerName.textContent = "Features";
+    pickerName.htmlFor = addFeature.id;
+    const pickerValue = document.createElement("span");
+    pickerValue.className = "fieldValue";
+    pickerValue.append(chips, addFeature);
+    picker.append(pickerName, " ", pickerValue, " ");
+    async function showPicker() {
+        picker.hidden = choice.value !== "select";
+        if (picker.hidden || fetched) return;
+        fetched = true;
+        const response = await fetch(
+            `/node?name=${encodeURIComponent(source)}`);
+        features = (await response.json()).features;
+        showPicked();
+    }
+    choice.addEventListener("change", showPicker);
 
     // the setting fields sit directly in the row, so the last field of the
     // row is the only one without a trailing gap
@@ -154,12 +224,13 @@ function addRow(source, type) {
     message.className = "error";
 
     row.append(
-        rowField("Transform", choice, "transformChoice"), from,
+        rowField("Transform", choice, "transformChoice"), picker, from,
         rowField("Name", into, "transformInto"), remove, " ", message
     );
     showSettings();
+    showPicker();
     section.append(row);
-    pending = {row, choice, source, into, message};
+    pending = {row, choice, source, into, message, picked};
     if (graph) graph.hidden = true;
     addTransform.hidden = true;
     applyTransform.hidden = false;
@@ -190,16 +261,21 @@ function rowField(name, control, tooltip) {
 /**
  * Apply the pending transform and return to the graph with its result as a
  * node, or show why it was rejected; a transform stored over "data" fells
- * every representation, on the server and so in the graph
+ * every transform, on the server and so in the graph
  */
 async function apply() {
-    const {row, choice, source, into, message} = pending;
+    const {row, choice, source, into, message, picked} = pending;
     const name = into.value.trim();
     if (!name) {
         message.textContent = "Name is empty";
         return;
     }
-    const values = readSettings(row);
+    const values = choice.value === "select"
+        ? {features: [...picked]} : readSettings(row);
+    if (choice.value === "select" && !picked.length) {
+        message.textContent = "No features chosen";
+        return;
+    }
     const response = await fetch("/transform", {
         method: "POST",
         headers: {"Content-Type": "application/json"},
@@ -253,7 +329,7 @@ function detailOf(node) {
 }
 
 /**
- * Draw and show the graph of the representation tree, with the heading's
+ * Draw and show the graph of the transform tree, with the heading's
  * buttons put away, since the nodes' + take over adding transforms
  */
 function showGraph() {

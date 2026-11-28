@@ -38,6 +38,8 @@ class TestResults(unittest.TestCase):
         self.indicator[:] = [True, False, True]
         self.assertFalse(results._record(self.subset, 3.0, 0.4))
         self.assertEqual(results.losses, [2.0, 2.0, 1.0, 3.0])
+        self.assertEqual(results.times, [0.1, 0.2, 0.3, 0.4])
+        self.assertEqual(results.evaluations, 4)
         assert_array_equal(results.subset._indicator, [False, True, True])
 
     def testNoLog(self):
@@ -45,6 +47,8 @@ class TestResults(unittest.TestCase):
         results = Results(self.problem, log=False)
         results._record(self.subset, 2.0, 0.1)
         self.assertEqual(results.losses, [])
+        self.assertEqual(results.times, [])
+        self.assertEqual(results.evaluations, 1) # counted even unlogged
         assert_array_equal(results.subset._indicator, [True, True, False])
 
     def testNaN(self):

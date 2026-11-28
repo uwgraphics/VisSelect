@@ -1,7 +1,7 @@
 // The scatterplot of the dataset and the line chart of the loss
 
 import {fitted} from "./fields.js";
-import {representationNames} from "./transforms.js";
+import {transformNames} from "./transforms.js";
 
 const chart = document.getElementById("chart");
 const lossChart = document.getElementById("lossChart");
@@ -51,13 +51,13 @@ export function setupCharts() {
     fitted(chartType);
     chartType.addEventListener("change", redraw);
 
-    // which representation the chart shows, offered once there is more
+    // which transform the chart shows, offered once there is more
     // than one, following the transform tree as it changes
     chartOn.append(new Option("data"));
     fitted(chartOn);
-    chartOn.addEventListener("change", showRepresentation);
-    document.addEventListener("representationsChanged", () => {
-        const names = representationNames();
+    chartOn.addEventListener("change", showTransform);
+    document.addEventListener("transformsChanged", () => {
+        const names = transformNames();
         chartOnField.hidden = names.length < 2;
         const value = names.includes(chartOn.value) ? chartOn.value : "data";
         chartOn.replaceChildren(...names.map(name => new Option(name)));
@@ -76,20 +76,36 @@ export function setupCharts() {
 }
 
 /**
- * Show the representation chosen for the chart, fetched from the server,
+ * Show the transform chosen for the chart, fetched from the server,
  * keeping the marked subset, whose items are the same rows everywhere, and
  * the chosen axes when the features are unchanged
  */
-async function showRepresentation() {
+async function showTransform() {
     const response = await fetch(
-        `/representation?name=${encodeURIComponent(chartOn.value)}`);
+        `/node?name=${encodeURIComponent(chartOn.value)}`);
     if (!response.ok) return;
     const reply = await response.json();
-    if (reply.features.join("\u0000") !== features.join("\u0000")) {
-        showFeatures(reply.features);
+    const {names, values} = numericFeatures(reply.features, reply.data);
+    if (names.join("\u0000") !== features.join("\u0000")) {
+        showFeatures(names);
     }
-    data = reply.data;
+    data = values;
     redraw();
+}
+
+/**
+ * Keep only the numeric features of a transform, since the charts draw
+ * numbers and a text column would show nothing on their axes
+ * @param {string[]} names The transform's feature names
+ * @param {*[][]} values The transform as one array of values per feature
+ * @returns {{names: string[], values: number[][]}} The numeric features
+ */
+export function numericFeatures(names, values) {
+    const kept = names.map((_, i) => typeof values[i]?.[0] === "number");
+    return {
+        names: names.filter((_, i) => kept[i]),
+        values: values.filter((_, i) => kept[i]),
+    };
 }
 
 /**
