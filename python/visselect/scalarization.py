@@ -95,7 +95,7 @@ class Chebyshev:
 
 class WeightedSum:
     """
-    Compute the linear scalarization of a vector by the weighted sum method
+    Compute the linear scalarization of a vector by the weighted sum
     """
 
     def __init__(

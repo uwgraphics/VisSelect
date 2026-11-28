@@ -4,6 +4,7 @@
 import {
     fitted, label, lockControls, options, readSettings, tip
 } from "./fields.js";
+import {markFraction} from "./charts.js";
 import {formulaParts, isNegative} from "./formula.js";
 import {transformNames} from "./transforms.js";
 
@@ -159,7 +160,11 @@ function addTerm() {
 
     const formula = document.createElement("span");
     formula.className = "formula fieldValue";
-    formula.append(...formulaParts(name, objectiveSettings[name].settings));
+    const settings = {...objectiveSettings[name].settings};
+    if (settings.radius) { // the marks drawn are the radius that matters
+        settings.radius = {...settings.radius, default: markFraction()};
+    }
+    formula.append(...formulaParts(name, settings));
 
     // which objective the term is, by name, after the term like a note
     const objectiveName = document.createElement("span");

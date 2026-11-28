@@ -165,6 +165,16 @@ export function startLoss(variable) {
 }
 
 /**
+ * The scatterplot's mark radius as a fraction of its plot, which the
+ * exact-extent axes make the radius on a transform scaled to [0, 1]
+ */
+export function markFraction() {
+    const margin = plots.defaults.margin;
+    const side = Math.max(1, chart.clientWidth - margin.left - margin.right);
+    return Number((plots.defaults.radius / side).toPrecision(1));
+}
+
+/**
  * Show the best loss found so far over the evaluations on the loss chart
  * @param {number[][]} best The [evaluation, time, loss, size] of each new
  *     best subset

@@ -63,6 +63,62 @@ class TestLossCall(LossTestCase):
         loss = Loss([self.mean, self.variance], linear)
         self.assertEqual(loss(self.subset), 20.25)
 
+class TestLossNormalized(LossTestCase):
+    """
+    Test utopia-nadir normalization of the objective terms
+    """
+
+    def testNormalizedCall(self):
+        """Test that terms scalarize as fractions of their bound ranges"""
+        # raw terms are 4.5 and 11.25: both sit halfway along these ranges
+        utopia = [0.5, 1.25]
+        nadir = [8.5, 21.25]
+        loss = Loss([self.mean, self.variance], utopia=utopia, nadir=nadir)
+        self.assertEqual(loss(self.subset), 0.5) # the worst fraction
+        linear = scalarization.WeightedSum([1.0, 1.0])
+        loss = Loss([self.mean, self.variance], linear, utopia, nadir)
+        self.assertEqual(loss(self.subset), 1.0) # the sum of fractions
+
+    def testVectorStaysRaw(self):
+        """Test that the vector reports raw terms even with bounds"""
+        loss = Loss([self.mean, self.variance],
+                    utopia=[0.0, 0.0], nadir=[1.0, 1.0])
+        assert_array_equal(loss.vector(self.subset), [4.5, 11.25])
+        assert_array_equal(loss.utopia, [0.0, 0.0])
+        assert_array_equal(loss.nadir, [1.0, 1.0])
+
+    def testDefaultUnbounded(self):
+        """Test that a loss without bounds has none and stays raw"""
+        loss = Loss([self.mean])
+        self.assertIsNone(loss.utopia)
+        self.assertIsNone(loss.nadir)
+        self.assertEqual(loss(self.subset), 4.5)
+
+    def testRejectBounds(self):
+        """Test that lone, misaligned or inverted bounds raise ValueErrors"""
+        with self.assertRaisesRegex(ValueError, "come together"):
+            Loss([self.mean], utopia=[0.0])
+        with self.assertRaisesRegex(ValueError, "Lengths"):
+            Loss([self.mean], utopia=[0.0, 1.0], nadir=[1.0, 2.0])
+        with self.assertRaisesRegex(ValueError, "not above"):
+            Loss([self.mean], utopia=[1.0], nadir=[1.0])
+
+    def testNormalizedEncode(self):
+        """Test that encoding applies the same affine map to each term"""
+        class Stub: # an objective whose encoding is a plain number
+            def __init__(self, value):
+                self.value = value
+            def __call__(self, subset):
+                return self.value
+            def encode(self, model, z, dataset, size):
+                return self.value
+        linear = scalarization.WeightedSum([1.0, 1.0])
+        loss = Loss([Stub(4.0), Stub(30.0)], linear,
+                    utopia=[0.0, 10.0], nadir=[8.0, 50.0])
+        encoded = loss.encode(None, None, self.dataset, 2)
+        self.assertEqual(encoded, 0.5 + 0.5) # each term halfway, summed
+
+
 class TestLossProperties(LossTestCase):
     """
     Test the loss object properties

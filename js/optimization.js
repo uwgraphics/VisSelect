@@ -2,12 +2,14 @@
 // and following its progress from the server's event stream
 
 import {
-    fitted, infoField, lockControls, options, readSettings, settingInputs
+    fitted, infoField, lockControls, options, readSettings, settingInputs,
+    tip
 } from "./fields.js";
 import {clearLossChart, showLoss, showSubset, startLoss} from "./charts.js";
 
 const optimizationControls = document.getElementById("optimizationControls");
 const algorithm = document.getElementById("algorithm");
+const calibration = document.getElementById("calibration");
 const algorithmSettings = document.getElementById("algorithmSettings");
 const selectSubset = document.getElementById("selectSubset");
 const stopSelection = document.getElementById("stopSelection");
@@ -31,6 +33,8 @@ export function setupOptimization(catalog, read, lock) {
 
     algorithm.append(...options(Object.keys(algorithms)));
     fitted(algorithm);
+    fitted(calibration);
+    calibration.title = tip("calibration");
     showAlgorithmSettings();
     algorithm.addEventListener("change", showAlgorithmSettings);
 
@@ -91,6 +95,7 @@ async function select() {
         ...readSelection(),
         algorithm: algorithm.value,
         settings: readSettings(algorithmSettings),
+        calibrate: calibration.value === "on",
     };
 
     selectionInfo.textContent = "Selecting...";
@@ -120,6 +125,14 @@ async function select() {
  */
 function follow(event) {
     const message = JSON.parse(event.data);
+    if (message.status === "calibrating") { // bounds first, then the solve
+        selectionInfo.textContent =
+            `Calibrating ${message.step} of ${message.of}...`;
+        return;
+    }
+    if (message.status === "calibrated") { // fresh or remembered bounds
+        return;
+    }
     const ended = message.status !== "improved";
     if (ended) setRunning(false);
     if (message.status === "failed") {

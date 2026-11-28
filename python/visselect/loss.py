@@ -22,25 +22,44 @@ class Loss:
     def __init__(
         self,
         objectives: Sequence[Callable],
-        scalarization: Callable | None = None
+        scalarization: Callable | None = None,
+        utopia: Sequence[float] | None = None,
+        nadir: Sequence[float] | None = None
     ) -> None:
         """
-        Initialize a loss function with a set of objectives and a scalarization
+        Initialize a loss function with a set of objectives, a scalarization,
+        and the utopia-nadir normalization bounds of each objective
 
         Args:
             objectives: A sequence of objective functions
             scalarization: A method for scalarizing the objective-space vector
+            utopia: The best achievable value of each objective
+            nadir: The worst value of each objective across the
+                single-objective optima
 
-        Raises: 
-            ValueError: if objectives list is empty
+        Raises:
+            ValueError: if the objectives list is empty, only one of 
+                utopia-nadir is given, their lengths differ from the 
+                objectives, or a nadir is not above its utopia
         """
         if len(objectives) < 1:
             raise ValueError("Objectives list is empty")
         if scalarization is None:
             scalarization = Chebyshev()
+        if (utopia is None) != (nadir is None):
+            raise ValueError("Utopia and nadir come together")
+        if utopia is not None:
+            utopia = np.asarray(utopia, dtype=float)
+            nadir = np.asarray(nadir, dtype=float)
+            if len(utopia) != len(objectives) or len(nadir) != len(objectives):
+                raise ValueError("Lengths of bounds and objectives differ")
+            if np.any(nadir <= utopia):
+                raise ValueError("Nadir is not above utopia")
 
         self._objectives = list(objectives)
         self._scalarization = scalarization
+        self._utopia = utopia
+        self._nadir = nadir
 
     def vector(self, subset: Subset) -> np.ndarray:
         """
@@ -53,12 +72,16 @@ class Loss:
 
     def __call__(self, subset: Subset) -> float:
         """
-        Evaluate the scalarization of the objective-space vector
+        Evaluate the scalarization of the objective-space vector, normalized
+        to each objective's utopia-nadir bounds
 
-        Args: 
+        Args:
             subset: The subset to evaluate the loss on
         """
-        return self._scalarization(self.vector(subset))
+        vector = self.vector(subset)
+        if self._utopia is not None:
+            vector = (vector - self._utopia) / (self._nadir - self._utopia)
+        return self._scalarization(vector)
 
     def encode(
         self,
@@ -84,11 +107,17 @@ class Loss:
         for objective in self._objectives:
             if not hasattr(objective, "encode"):
                 noEncoding.append(getattr(objective, "__name__", type(objective).__name__))
-            else: 
+            else:
                 encoding.append(objective.encode(model, z, dataset, size))
         if noEncoding:
             raise ValueError(f"No encoding for {', '.join(noEncoding)}")
 
+        if self._utopia is not None: # the same affine map evaluation applies
+            encoding = [
+                (expression - utopia) / (nadir - utopia)
+                for expression, utopia, nadir
+                in zip(encoding, self._utopia, self._nadir)
+            ]
         return self._scalarization.encode(model, encoding)
 
     def __len__(self) -> int:
@@ -107,6 +136,21 @@ class Loss:
     @property
     def scalarization(self) -> Callable:
         """
-        A method for scalarizing the objective-space vector
+        The method for scalarizing the objective-space vector
         """
         return self._scalarization
+
+    @property
+    def utopia(self) -> np.ndarray | None:
+        """
+        The best achievable value of each objective, or None unnormalized
+        """
+        return self._utopia
+
+    @property
+    def nadir(self) -> np.ndarray | None:
+        """
+        The worst value of each objective across the single-objective
+        optima, or None unnormalized
+        """
+        return self._nadir

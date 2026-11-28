@@ -156,6 +156,8 @@ class Crossings(Objective):
     neighboring axes of a parallel coordinates chart
     """
 
+    utopia = 0.0 # the best achievable value: no crossings at all
+
     def __call__(
         self,
         subset: Subset
@@ -183,6 +185,67 @@ class Crossings(Objective):
             )
         # both orders of every pair were counted, and so does the divisor
         return float(crossings / (items * (items - 1) * (features - 1)))
+
+
+class Overdraw(Objective):
+    """
+    Minimize the total area of overlap among the equal circular marks the
+    subset draws on a scatterplot
+    """
+
+    utopia = 0.0 # the best achievable value: no overlap at all
+
+    def __init__(self, radius: float, on: str = "data") -> None:
+        """
+        Initialize an overdraw objective
+
+        Args:
+            radius: The radius of the marks, in the units of the
+                transform, such as a fraction of a transform scaled
+                to [0, 1]
+            on: The name of the transform to run the objective on
+
+        Raises:
+            ValueError: If the radius is missing or not positive
+        """
+        if radius is None:
+            raise ValueError("Radius is required")
+        if radius <= 0:
+            raise ValueError("Radius is not positive")
+        super().__init__(on)
+        self._radius = radius
+
+    def __call__(
+        self,
+        subset: Subset
+    ) -> float:
+        """
+        Compute the total pairwise intersection area of the circles of the
+        mark radius centred on the subset's points, counting a fully
+        stacked pair as one whole mark's area
+
+        Args:
+            subset: The subset to evaluate the overdraw of
+
+        Raises:
+            ValueError: If the transform does not have exactly 2 features
+        """
+        data = subset[self._on]
+        if data.shape[1] != 2:
+            raise ValueError("Transform is not 2D")
+        if data.shape[0] < 2: # a lone mark overlaps nothing
+            return 0.0
+
+        radius = self._radius
+        pairs = np.triu_indices(data.shape[0], k=1)
+        distances = cdist(data, data)[pairs]
+        distances = distances[distances < 2 * radius] # the rest add zero
+
+        # the lens area of two overlapping circles of equal radius
+        return float(np.sum(
+            2 * radius**2 * np.arccos(distances / (2 * radius))
+            - (distances / 2) * np.sqrt(4 * radius**2 - distances**2)
+        ))
 
 
 class EnergyDistance(Objective):
@@ -427,3 +490,15 @@ class DiscreteCoverage(Objective):
         if np.any((data != 0) & (data != 1)):
             raise ValueError("Transform is not one hot encoded")
         return data.shape[1]
+
+    def utopia(self, dataset: Dataset, size: int) -> float:
+        """
+        The best achievable value: every category covered, or as many as
+        the subset has items for
+
+        Args:
+            dataset: The dataset selected from
+            size: The size of the subsets selected
+        """
+        categories = dataset.evaluate(self._categories, self._on)
+        return max(0.0, 1.0 - size / categories)

@@ -38,11 +38,14 @@ const plots = {
         const height = spec.height ?? width;
         const marked = new Set(spec.marked ?? []);
 
+        // exact extents, so the plot is each feature stretched over a
+        // unit square: a mark's radius is the same fraction of the plot
+        // as of a transform scaled to [0, 1]
         const x = d3.scaleLinear()
-            .domain(d3.extent(xValues)).nice()
+            .domain(d3.extent(xValues))
             .range([margin.left, width - margin.right]);
         const y = d3.scaleLinear()
-            .domain(d3.extent(yValues)).nice()
+            .domain(d3.extent(yValues))
             .range([height - margin.bottom, margin.top]);
 
         const svg = d3.create("svg")
@@ -188,8 +191,8 @@ const plots = {
             .domain([0, span > 0 ? span : 1])
             .range([margin.left, width - margin.right])
             .nice(xTicks);
-        const yTicks = Math.max(2, Math.floor(
-            (height - margin.top - margin.bottom) / 40));
+        const yTicks = Math.max(3, Math.floor(
+            (height - margin.top - margin.bottom) / 22));
         const y = d3.scaleLinear()
             .domain(points.length ? d3.extent(points, p => p[1]) : [0, 1])
             .range([height - margin.bottom, margin.top])
@@ -229,6 +232,19 @@ const plots = {
                 .style("font-size", spec.labelSize)
                 .style("fill", "currentColor")
                 .text(spec.yLabel);
+        }
+
+        // a reference level, drawn once the chart's range reaches it
+        const [low, high] = y.domain();
+        if (spec.reference != null
+                && spec.reference >= low && spec.reference <= high) {
+            svg.append("line")
+                .attr("x1", margin.left)
+                .attr("x2", width - margin.right)
+                .attr("y1", y(spec.reference))
+                .attr("y2", y(spec.reference))
+                .style("stroke", "currentColor")
+                .style("stroke-opacity", 0.2);
         }
 
         const line = d3.line()

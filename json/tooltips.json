@@ -22,6 +22,7 @@
     "nodeRemove": "Remove this transform and everything derived from it",
     "chartType": "The type of chart shown",
     "chartOn": "The transform of the dataset the chart shows",
+    "calibration": "Whether to measure utopia-nadir bounds before solving, normalizing the loss to fractions of each objective's range",
     "lossXAxis": "The measure of progress along the x axis",
     "generateDataset": "Generate a dataset from the specified distribution",
     "addFeature": "Add a feature for the transform to keep",

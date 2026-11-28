@@ -109,7 +109,7 @@ export function formulaParts(name, settings) {
             const chooser = choosers[setting];
             token.textContent = chooser.selectedOptions
                 ? chooser.selectedOptions[0].text
-                : chooser.value;
+                : chooser.value || chooser.placeholder;
             token.classList.add("editable");
             token.addEventListener("mouseenter", () => place(chooser, token));
 

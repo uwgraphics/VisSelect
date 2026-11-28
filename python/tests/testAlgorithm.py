@@ -345,7 +345,7 @@ class TestGurobi(unittest.TestCase):
             scalarization.WeightedSum([2.0, 0.5])
         )
         problem = Problem(self.dataset, loss, size=3)
-        results = Solver(Gurobi(tolerance=0))(problem)
+        results = Solver(Gurobi(tolerance=0))(problem, calibrate=False)
         self.assertAlmostEqual(results.loss, self.bruteForce(problem))
 
     def testChebyshev(self):
@@ -353,6 +353,19 @@ class TestGurobi(unittest.TestCase):
         loss = Loss(
             [objective.Preserve(metric.mean), objective.Preserve(metric.mean)],
             scalarization.Chebyshev([2.0, 0.5])
+        )
+        problem = Problem(self.dataset, loss, size=3)
+        results = Solver(Gurobi(tolerance=0))(problem, calibrate=False)
+        self.assertAlmostEqual(results.loss, self.bruteForce(problem))
+
+    def testNormalized(self):
+        """Test that a normalized loss solves to the brute force minimum,
+        including through the negative values a tight utopia allows"""
+        loss = Loss(
+            [objective.Preserve(metric.mean), objective.Preserve(metric.mean)],
+            scalarization.Chebyshev(),
+            utopia=[0.1, 0.5], # above the true optima: fractions go negative
+            nadir=[2.0, 4.0]
         )
         problem = Problem(self.dataset, loss, size=3)
         results = Solver(Gurobi(tolerance=0))(problem)
@@ -373,7 +386,7 @@ class TestGurobi(unittest.TestCase):
         loss = Loss([objective.Distinctness(), objective.EnergyDistance()])
         problem = Problem(self.dataset, loss, 3)
         with self.assertRaisesRegex(ValueError, "Distinctness, EnergyDistance"):
-            Solver(Gurobi())(problem)
+            Solver(Gurobi())(problem, calibrate=False)
 
     def testToleranceBoundary(self):
         """Test that a negative tolerance raises a ValueError"""

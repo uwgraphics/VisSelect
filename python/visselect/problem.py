@@ -32,8 +32,10 @@ class Problem:
             dataset: The dataset to apply subset selection to
             loss: The loss function to evaluate candidate subsets against
             size: The size of the subset to select
-            epsilon: The loss within which the smallest subset is selected
-            sizeWeight: The weight balancing the subset size against the loss
+            epsilon: The loss within which the smallest subset is selected,
+                in the loss's units: a range fraction when it has bounds
+            sizeWeight: The weight balancing the subset size against the
+                loss, in the loss's units
 
         Raises:
             ValueError: if none or several of size, epsilon and sizeWeight

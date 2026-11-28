@@ -11,8 +11,19 @@ from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
+# third party
+import numpy as np
+
 # local files
-from visselect import Loss, Problem, Solver, metric, objective, scalarization
+from visselect import (
+    Loss, 
+    Problem, 
+    Solver, 
+    Subset, 
+    metric, 
+    objective, 
+    scalarization
+)
 from visselect.algorithm import Greedy, Random
 from visselect.server import Handler, Server, buildCatalog
 
@@ -191,7 +202,15 @@ class TestServer(unittest.TestCase):
         self.server.worker.join(timeout=10)
         self.assertFalse(self.server.worker.is_alive())
 
+        # the two objectives calibrate first, one step published per solve,
+        # and the solve's own counts stay apart from the calibration's
         messages = self.messages()
+        self.assertEqual([m["step"] for m in messages
+                          if m["status"] == "calibrating"], [1, 2])
+        self.assertEqual(sum(m["status"] == "calibrated"
+                             for m in messages), 1)
+        messages = [m for m in messages
+                    if m["status"] not in ("calibrating", "calibrated")]
         first, last = messages[0], messages[-1]
         self.assertEqual(first["status"], "improved")
         self.assertEqual(first["evaluation"], 1)
@@ -282,8 +301,9 @@ class TestServer(unittest.TestCase):
         """Test that a stopped selection publishes its stopped status"""
         self.server.generate({"generator": "normal",
                               "settings": {"size": (20, 2), "seed": 0}})
-        problem = Problem(self.server.dataset,
-                          Loss([objective.Preserve(metric.mean)]), 5)
+        loss = Loss([objective.Preserve(metric.mean)],
+                    utopia=[0.0], nadir=[1.0]) # bounded: no calibration
+        problem = Problem(self.server.dataset, loss, 5)
         self.server.stop() # stopping before the run stops its first evaluation
         self.server.run(Solver(Random(samples=10, seed=0)), problem)
 
@@ -292,6 +312,83 @@ class TestServer(unittest.TestCase):
         self.assertEqual(messages[0]["status"], "improved")
         self.assertEqual(messages[-1]["status"], "stopped")
         self.assertEqual(messages[-1]["evaluation"], 1)
+
+    def testSelectReusesCalibration(self):
+        """Test that rerunning reuses bounds until the data changes"""
+        self.server.generate({"generator": "normal",
+                              "settings": {"size": (20, 2), "seed": 0}})
+        def statuses(request):
+            self.server.select(request)
+            self.server.worker.join(timeout=10)
+            return [m["status"] for m in self.messages()]
+
+        self.assertIn("calibrating", statuses(self.request))
+
+        # rerun, with new weights even: remembered bounds, no new solves
+        tuned = dict(self.request)
+        tuned["objectives"] = [o | {"weight": 2.0}
+                               for o in self.request["objectives"]]
+        rerun = statuses(tuned)
+        self.assertNotIn("calibrating", rerun)
+        self.assertIn("calibrated", rerun)
+
+        # new data fells the kept solver and everything it measured
+        self.server.generate({"generator": "normal",
+                              "settings": {"size": (20, 2), "seed": 1}})
+        self.assertIn("calibrating", statuses(self.request))
+
+    def testSelectCalibrateOff(self):
+        """Test that the page can turn calibration off for a solve"""
+        self.server.generate({"generator": "normal",
+                              "settings": {"size": (20, 2), "seed": 0}})
+        self.server.select(self.request | {"calibrate": False})
+        self.server.worker.join(timeout=10)
+        statuses = [m["status"] for m in self.messages()]
+        self.assertNotIn("calibrating", statuses)
+        self.assertNotIn("calibrated", statuses)
+        self.assertEqual(statuses[-1], "finished")
+
+    def testSelectLoneObjective(self):
+        """Test that a lone objective calibrates too, solved for once"""
+        self.server.generate({"generator": "normal",
+                              "settings": {"size": (20, 2), "seed": 0}})
+        request = dict(self.request)
+        request["objectives"] = [self.request["objectives"][0]]
+        def statuses():
+            self.server.worker.join(timeout=10)
+            return [m["status"] for m in self.messages()]
+
+        self.server.select(request)
+        first = statuses()
+        self.assertEqual(first.count("calibrating"), 1)
+        self.assertIn("calibrated", first)
+
+        self.server.select(request) # the lone utopia is remembered
+        rerun = statuses()
+        self.assertNotIn("calibrating", rerun)
+        self.assertIn("calibrated", rerun)
+
+    def testStoppedCalibrating(self):
+        """Test that a stop during calibration ends before the solve"""
+        self.server.generate({"generator": "normal",
+                              "settings": {"size": (20, 2), "seed": 0}})
+        problem = Problem(self.server.dataset,
+                          Loss([objective.Preserve(metric.mean),
+                                objective.Distinctness()]), 5)
+
+        class OnePoint: # a distinct deterministic subset per objective
+            def __call__(self, algorithmProblem, emit):
+                first = isinstance(algorithmProblem.loss.objectives[0],
+                                   objective.Preserve)
+                indicator = np.zeros(20, dtype=bool)
+                indicator[0 if first else 10:][:5] = True
+                subset = Subset(algorithmProblem.dataset, indicator)
+                emit(subset, float(algorithmProblem.loss(subset)))
+
+        self.server.stop() # stopping cuts each calibration solve short
+        self.server.run(Solver(OnePoint()), problem)
+        self.assertEqual([m["status"] for m in self.messages()],
+                         ["calibrating", "calibrating", "stopped"])
 
     def testFailed(self):
         """Test that a failing selection publishes its error"""
@@ -322,8 +419,9 @@ class TestServer(unittest.TestCase):
             pass
         self.server.generate({"generator": "normal",
                               "settings": {"size": (20, 2), "seed": 0}})
-        problem = Problem(self.server.dataset,
-                          Loss([objective.Preserve(metric.mean)]), 5)
+        loss = Loss([objective.Preserve(metric.mean)],
+                    utopia=[0.0], nadir=[1.0]) # bounded: no calibration
+        problem = Problem(self.server.dataset, loss, 5)
         self.server.run(Solver(idle), problem)
         [message] = self.messages()
         self.assertEqual(message["status"], "finished")

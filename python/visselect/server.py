@@ -163,6 +163,9 @@ class Server(ThreadingHTTPServer):
 
         self.worker = None # the thread running the latest selection
         self.method = None # the latest selection's algorithm, for stopping
+        self.solver = None # kept between selections for its calibrations
+        self.solving = None # the kept solver's algorithm and settings
+        self.objectives = {} # built objectives, reused by their settings
         self.starting = threading.Lock() # so only one selection runs at a time
         self.stopping = threading.Event() # set to stop the running selection
         self.listeners = [] # a message queue for each page's event stream
@@ -183,6 +186,7 @@ class Server(ThreadingHTTPServer):
         entry = self.catalog["generators"][request["generator"]]
         data = entry["constructor"](**request["settings"])
         self.dataset = Dataset(data)
+        self.solver = None # its calibrations described the old data
 
     def transform(self, request: dict) -> None:
         """
@@ -205,6 +209,7 @@ class Server(ThreadingHTTPServer):
         if not request["into"]:
             raise ValueError("The name to store into is empty")
 
+        self.solver = None # its calibrations may have read this tree
         entry = self.catalog["transforms"][request["transform"]]
         if request["into"] == "data": # transformed over the data itself
             # derived apart from the tree, which the new root then fells
@@ -240,14 +245,17 @@ class Server(ThreadingHTTPServer):
 
         chosen = request["objectives"]
         objectives = []
-        for o in chosen:
-            values = o["settings"].items()
-            values = {k: np.inf if v == "inf" else v for k, v in values}
-            if "metric" in values: # chosen by name
-                metrics = self.catalog["metrics"]
-                values["metric"] = metrics[values["metric"]]["constructor"]
-            entry = self.catalog["objectives"][o["name"]]
-            objectives.append(entry["constructor"](**values))
+        for o in chosen: # reuse built objectives so calibrations carry over
+            key = json.dumps([o["name"], o["settings"]], sort_keys=True)
+            if key not in self.objectives:
+                values = o["settings"].items()
+                values = {k: np.inf if v == "inf" else v for k, v in values}
+                if "metric" in values: # chosen by name
+                    metrics = self.catalog["metrics"]
+                    values["metric"] = metrics[values["metric"]]["constructor"]
+                entry = self.catalog["objectives"][o["name"]]
+                self.objectives[key] = entry["constructor"](**values)
+            objectives.append(self.objectives[key])
         weights = [o["weight"] for o in chosen]
         entry = self.catalog["scalarizations"][request["scalarization"]]
         loss = Loss(objectives, entry["constructor"](weights))
@@ -257,9 +265,16 @@ class Server(ThreadingHTTPServer):
         }
         problem = Problem(self.dataset, loss, **sizing)
 
-        entry = self.catalog["algorithms"][request["algorithm"]]
-        method = entry["constructor"](**request["settings"])
-        solver = Solver(method)
+        # the solver is kept, and with it all it has calibrated, until
+        # its algorithm, its settings or the data change
+        key = json.dumps([request["algorithm"], request["settings"]],
+                         sort_keys=True)
+        if self.solver is None or self.solving != key:
+            entry = self.catalog["algorithms"][request["algorithm"]]
+            self.solver = Solver(entry["constructor"](**request["settings"]))
+            self.solving = key
+        solver = self.solver
+        method = solver.algorithm
 
         with self.starting:
             if self.worker is not None and self.worker.is_alive():
@@ -267,13 +282,20 @@ class Server(ThreadingHTTPServer):
             self.stopping.clear()
             self.method = method
             self.worker = threading.Thread(
-                target=self.run, args=(solver, problem), daemon=True
+                target=self.run,
+                args=(solver, problem, request.get("calibrate", True)),
+                daemon=True
             )
             self.worker.start()
 
         return {"started": True}
 
-    def run(self, solver: Solver, problem: Problem) -> None:
+    def run(
+        self,
+        solver: Solver,
+        problem: Problem,
+        calibrate: bool = True
+    ) -> None:
         """
         Run a selection in the worker thread until it finishes or is stopped,
         then publish its outcome, or its error if it fails
@@ -299,7 +321,29 @@ class Server(ThreadingHTTPServer):
             return not self.stopping.is_set()
 
         try:
-            results = solver(problem, callback=callback)
+            loss = problem.loss
+            if calibrate and problem.size is not None and loss.utopia is None:
+                # measure the bounds first, publishing each step apart
+                # from the solve so the page's counts stay the solve's
+                steps = []
+                def calibrating(results: Results) -> bool:
+                    if not steps or steps[-1] is not results:
+                        steps.append(results)
+                        self.publish({"status": "calibrating",
+                                      "step": len(steps), "of": len(loss)})
+                    return not self.stopping.is_set()
+                utopia, nadir, _ = solver.calibrate(
+                    problem.dataset, loss.objectives, problem.size,
+                    callback=calibrating)
+                loss = Loss(loss.objectives, loss.scalarization,
+                            utopia=utopia, nadir=nadir)
+                problem = Problem(problem.dataset, loss, size=problem.size)
+                if self.stopping.is_set():
+                    self.publish({"status": "stopped", "evaluation": 0,
+                                  "time": 0.0})
+                    return
+                self.publish({"status": "calibrated"})
+            results = solver(problem, callback=callback, calibrate=False)
         except Exception as e:
             self.publish({"status": "failed", "error": str(e)})
             return
@@ -411,6 +455,7 @@ class Handler(SimpleHTTPRequestHandler):
             except ValueError as e:
                 self.send_error(400, explain=str(e))
                 return
+            self.server.solver = None # calibrated against the old data
             self.sendData()
         elif self.path == "/generate": # Send a synthetically generated  dataset
             body = self.rfile.read(int(self.headers["Content-Length"]))
@@ -435,6 +480,7 @@ class Handler(SimpleHTTPRequestHandler):
             except (KeyError, TypeError, ValueError) as e:
                 self.sendJSON(400, {"error": str(e)})
                 return
+            self.server.solver = None # calibrated against the old tree
             self.sendJSON(200, {"removed": True})
         elif self.path == "/select": # Send the selection information
             body = self.rfile.read(int(self.headers["Content-Length"]))
@@ -476,7 +522,6 @@ if __name__ == "__main__":
     hostName = "localhost"
     serverPort = 8080
     path = Path(__file__).resolve().parents[2]
-
     handler = partial(Handler, directory=path)
 
     with Server(hostName, serverPort, handler) as server:

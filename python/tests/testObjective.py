@@ -139,6 +139,39 @@ class TestCrossings(unittest.TestCase):
             0.0)
 
 
+class TestOverdraw(unittest.TestCase):
+    """
+    Test the scatterplot overdraw objective class
+    """
+
+    def testValue(self):
+        """Test stacked, partly overlapping and separate pairs of marks"""
+        data = np.array([[0.0, 0.0], [0.0, 0.0], # stacked: one mark's area
+                         [5.0, 0.0], [6.0, 0.0], # distance 1 at radius 1
+                         [20.0, 0.0]]) # far from everything: no overlap
+        subset = Subset(Dataset(data), np.full(5, True))
+        lens = 2 * np.arccos(0.5) - 0.5 * np.sqrt(3.0) # r = 1, d = 1
+        self.assertAlmostEqual(objective.Overdraw(radius=1.0)(subset),
+                               np.pi + lens)
+
+    def testLone(self):
+        """Test that a lone mark has no overdraw"""
+        dataset = Dataset(np.array([[0.0, 0.0], [1.0, 1.0]]))
+        subset = Subset(dataset, np.array([True, False]))
+        self.assertEqual(objective.Overdraw(radius=1.0)(subset), 0.0)
+
+    def testReject(self):
+        """Test that a bad radius or a non-2D transform raises a ValueError"""
+        with self.assertRaises(ValueError):
+            objective.Overdraw(radius=0.0)
+        with self.assertRaisesRegex(ValueError, "required"):
+            objective.Overdraw(radius=None) # an empty setting from the page
+        dataset = Dataset(np.array([[0.0], [1.0]]))
+        subset = Subset(dataset, np.array([True, True]))
+        with self.assertRaisesRegex(ValueError, "not 2D"):
+            objective.Overdraw(radius=1.0)(subset)
+
+
 class TestEnergyDistance(unittest.TestCase):
     """
     Test the energy distance objective class
@@ -337,6 +370,16 @@ class TestDiscreteCoverage(unittest.TestCase):
             coverage(Subset(dataset, np.array([True, False, False]))), 0.5)
         self.assertEqual(
             coverage(Subset(dataset, np.array([True, True, False]))), 0.0)
+
+    def testUtopia(self):
+        """Test the declared optima: full coverage, or one item per
+        category when the size runs short, and zero for the geometry"""
+        dataset = Dataset(np.array([[1.0, 0.0], [1.0, 0.0], [0.0, 1.0]]))
+        coverage = objective.DiscreteCoverage()
+        self.assertEqual(coverage.utopia(dataset, 2), 0.0)
+        self.assertEqual(coverage.utopia(dataset, 1), 0.5)
+        self.assertEqual(objective.Crossings.utopia, 0.0)
+        self.assertEqual(objective.Overdraw.utopia, 0.0)
 
     def testRejectOrdinal(self):
         """Test that bin numbers, discretized but not encoded, raise"""
